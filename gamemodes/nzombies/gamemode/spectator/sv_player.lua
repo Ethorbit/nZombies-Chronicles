@@ -1,3 +1,5 @@
+nzSpectate = nzSpectate or {}
+
 --Get the meta Table
 local plyMeta = FindMetaTable( "Player" )
 --accessors
@@ -10,6 +12,14 @@ function plyMeta:SetSpectator()
 	end
 	self:SetTeam( TEAM_SPECTATOR )
 	self:SetSpectatingType( OBS_MODE_CHASE )
-	self:Spectate( self:GetSpectatingType() )
+	self:Spectate(OBS_MODE_CHASE)
 	self:SetSpectatingID( 1 )
+end
+
+function plyMeta:SpectateClosestEntity() -- Spectate the closest entity to the spectator, created by Ethorbit
+	local closestEnt = nzMisc:GetClosestEntityToPosition(self:GetPos(), function(ent)
+		return ent != self and ent:GetParent() != self and ent:IsInWorld() and (!ent:IsPlayer() or ent:Team() == TEAM_PLAYERS)
+	end)
+
+	self:SpectateEntity(closestEnt)
 end

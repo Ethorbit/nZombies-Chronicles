@@ -39,6 +39,37 @@ if CLIENT then
 		print("Received Player Perks Sync")
 		local ply = net.ReadEntity()
 		nzPerks.Players[ply] = net.ReadTable()
+
+		local myperks = nzPerks.Players[LocalPlayer()]
+		if (istable(myperks)) then
+			local gotstam = false
+			for _,v in pairs(myperks) do
+				if (v == "staminup") then
+					gotstam = true
+				break end
+			end
+
+			local new_walk_speed = gotstam and LocalPlayer():GetWalkSpeed("staminup") or LocalPlayer():GetWalkSpeed("default")
+			local new_run_speed = gotstam and LocalPlayer():GetRunSpeed("staminup") or LocalPlayer():GetRunSpeed("default")
+
+			if new_walk_speed then
+				LocalPlayer():SetWalkSpeed(new_walk_speed)
+			end
+
+			if new_run_speed then
+				LocalPlayer():SetRunSpeed(new_run_speed)
+				LocalPlayer():SetMaxRunSpeed(new_run_speed)
+			end
+
+			if (gotstam) then
+				LocalPlayer():SetStamina(200)
+				LocalPlayer():SetMaxStamina(200)
+			else
+				LocalPlayer():SetStamina(100)
+				LocalPlayer():SetMaxStamina(100)
+			end
+		end
+
 		--PrintTable(nzPerks.Players)
 	end
 	

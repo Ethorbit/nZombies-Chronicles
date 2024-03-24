@@ -8,6 +8,8 @@ ENT.Contact			= "Don't"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 	self:NetworkVar( "String", 0, "WeaponClass")
 end

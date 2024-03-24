@@ -8,6 +8,8 @@ ENT.Contact			= "youtube.com/Zet0r"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 	self:NetworkVar("Int", 0, "Price")
 	self:NetworkVar("Bool", 0, "Active")
@@ -20,19 +22,29 @@ end
 
 function ENT:DecideOutcomePerk(ply, specific)
 	if specific then self:SetPerkID(specific) return end
-	
-	if self.TimesUsed > 2 and math.random(100) <= 55 and #ents.FindByClass("wundefizz_machine") > 1 then
+
+	if self.TimesUsed > 1 and math.random(100) <= 20 and #ents.FindByClass("wunderfizz_machine") > 1 then
 		return hook.Call("OnPlayerBuyWunderfizz", nil, ply, "teddy") or "teddy"
 	else
 		local blockedperks = {
 			["wunderfizz"] = true, -- lol, this would happen
 			["pap"] = true,
 		}
-		local available = nzMapping.Settings.wunderfizzperks or nzPerks:GetList()
+
+		local wunderfizzlist = {}
+		for k,v in pairs(nzPerks:GetList()) do
+			if k != "wunderfizz" and k != "pap" then
+				wunderfizzlist[k] = {true, v}
+			end
+		end
+
+		local available = nzMapping.Settings.wunderfizzperklist or wunderfizzlist
 		local tbl = {}
 		for k,v in pairs(available) do
 			if !self:GetUser():HasPerk(k) and !blockedperks[k] then
-				table.insert(tbl, k)
+				if (v[1] == nil || v[1] == true) then
+					table.insert(tbl, k)
+				end
 			end
 		end
 		if #tbl <= 0 then return hook.Call("OnPlayerBuyWunderfizz", nil, ply, "teddy") or "teddy" end -- Teddy bear for no more perks D:
@@ -111,6 +123,12 @@ function ENT:Use(activator, caller)
 			if #activator:GetPerks() < GetConVar("nz_difficulty_perks_max"):GetInt() then
 				-- If they have enough money
 				activator:Buy(price, self, function()
+					if (util.NetworkStringToID("VManip_SimplePlay") != 0) then
+						net.Start("VManip_SimplePlay")
+						net.WriteString("use")
+						net.Send(activator)
+					end
+
 					self:SetBeingUsed(true)
 					self:SetUser(activator)
 					
@@ -126,6 +144,7 @@ function ENT:Use(activator, caller)
 						if IsValid(self.Bottle) then
 							local e = EffectData()
 							e:SetEntity(self.Bottle)
+							e:SetOrigin(self.Bottle:GetPos())
 							e:SetMagnitude(1.1)
 							e:SetScale(5)
 							util.Effect("lightning_aura", e)
@@ -138,10 +157,14 @@ function ENT:Use(activator, caller)
 			else
 				print(activator:Nick().." already has max perks")
 			end
-		elseif self:GetUser() == activator and !self.Bottle:GetWinding() and !self:GetIsTeddy() then
+		elseif self:GetUser() == activator and !self.Bottle:GetWinding() and !self:GetIsTeddy() and #activator:GetPerks() < GetConVar("nz_difficulty_perks_max"):GetInt() then
 			local perk = self:GetPerkID()
 			local wep = activator:Give("nz_perk_bottle")
-			wep:SetPerk(perk)
+			
+			if (isfunction(wep.SetPerk)) then
+				wep:SetPerk(perk)
+			end
+
 			activator:GivePerk(perk)
 			self:SetBeingUsed(false)
 			self:SetPerkID("")
@@ -156,6 +179,7 @@ function ENT:OnRemove()
 end
 
 function ENT:MoveLocation()
+	if (#ents.FindByClass("wunderfizz_machine") == 1) then return end -- NO! Don't move if there's nowhere to go
 	self:TurnOff()
 	self:SetPerkID("")
 	self:SetUser(nil)

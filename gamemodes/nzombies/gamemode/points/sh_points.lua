@@ -38,6 +38,7 @@ if (SERVER) then
 		end
 		amount = hook.Call("OnPlayerGetPoints", nil, self, amount) or amount
 		self:SetPoints(self:GetPoints() + amount)
+		nzRound:SetTotalPoints(nzRound:GetTotalPoints() + amount)
 	end
 
 	-- Takes away a certain amount by inverting the amount specified.
@@ -65,6 +66,7 @@ if (SERVER) then
 					return true -- If the buy was successfull, this function also returns true
 				end
 			else
+				self:SendLua("surface.PlaySound('nzr/effects/no_money.mp3')")
 				return false -- Return false if we can't afford
 			end
 		else

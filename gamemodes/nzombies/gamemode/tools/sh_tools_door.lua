@@ -50,31 +50,35 @@ nzTools:CreateTool("door", {
 		valz["Row4"] = data.elec
 		valz["Row5"] = data.buyable
 		valz["Row6"] = data.rebuyable
+		valz["Row7"] = data.modelvisible
 
 		local DProperties = vgui.Create( "DProperties", frame )
 		DProperties:SetSize( 280, 260 )
-		DProperties:SetPos( 10, 10 )
-		
+		DProperties:SetPos( 110, 20 )
+
 		function DProperties.CompileData()
-			local function compileString(price, elec, flag, buyable, rebuyable)
+			local function compileString(price, elec, flag, buyable, rebuyable, modelvisible)
 				local str = "price="..price..",elec="..elec
 				if flag then
 					str = str..",link="..flag
+				else
+					str = str..",link=disabled"
 				end
 				str = str..",buyable="..buyable
 				str = str..",rebuyable="..rebuyable
+				str = str..",modelvisible="..modelvisible
 				return str
 			end
 			local flag = false
 			if valz["Row1"] == 1 then
 				flag = valz["Row2"]
 			end
-			local flagString = compileString(valz["Row3"], valz["Row4"], flag, valz["Row5"], valz["Row6"])
+			local flagString = compileString(valz["Row3"], valz["Row4"], flag, valz["Row5"], valz["Row6"], valz["Row7"])
 			print(flagString)
 
 			return {flags = flagString}
 		end
-		
+
 		function DProperties.UpdateData(data)
 			nzTools:SendData( data, "door", { -- Hardcoded save function, not just the data
 				flag = valz["Row1"],
@@ -83,9 +87,10 @@ nzTools:CreateTool("door", {
 				elec = valz["Row4"],
 				buyable = valz["Row5"],
 				rebuyable = valz["Row6"],
+				modelvisible = valz["Row7"]
 			})
 		end
-		
+
 		-- We call it immediately as it would otherwise auto-send our table to the server, not the compiled string
 		-- Although only if not opened via context menu! Context menu should NOT sync tools, causing tool mismatches!
 		if !context then DProperties.UpdateData(DProperties.CompileData()) end
@@ -116,6 +121,10 @@ nzTools:CreateTool("door", {
 			Row6:Setup( "Boolean" )
 			Row6:SetValue( valz["Row6"] )
 			Row6.DataChanged = function( _, val ) valz["Row6"] = val DProperties.UpdateData(DProperties.CompileData()) end
+			local Row7 = DProperties:CreateRow( "Advanced Door Settings", "Model Visible?" )
+			Row7:Setup( "Boolean" )
+			Row7:SetValue( valz["Row7"] )
+			Row7.DataChanged = function( _, val ) valz["Row7"] = val DProperties.UpdateData(DProperties.CompileData()) end
 		else
 			local text = vgui.Create("DLabel", DProperties)
 			text:SetText("Enable Advanced Mode for more options.")
@@ -128,12 +137,13 @@ nzTools:CreateTool("door", {
 		return DProperties
 	end,
 	defaultdata = {
-		flags = "flag=0,price=1000,elec=0,buyable=1,rebuyable=0",
+		flags = "flag=0,price=1000,elec=0,buyable=1,rebuyable=0,modelvisible=1",
 		flag = 0,
 		link = 1,
 		price = 1000,
 		elec = 0,
 		buyable = 1,
 		rebuyable = 0,
+		modelvisible = 1
 	}
 })

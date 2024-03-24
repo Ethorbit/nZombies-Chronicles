@@ -60,7 +60,20 @@ function SWEP:Deploy()
 end
 
 function SWEP:Equip( owner )
-	owner:SetActiveWeapon("nz_death_machine")
+	if (IsValid(owner) and owner:Alive()) then
+		-- timer.Simple(1, function()
+		-- 	if (IsValid(owner) and owner:Alive() and IsValid(owner:GetWeapon("nz_death_machine"))) then
+		-- 		owner:SetActiveWeapon(owner:GetWeapon("nz_death_machine"))
+		-- 		self:ShootBullet(1, 1, 1)
+		-- 	end
+		-- end)
+	end
+
+	-- if (IsValid(owner) and owner:Alive()) then
+
+
+	-- 	--if (owner:GetActiveWeapon() == owner:GetWeapon("nz_"))
+	-- end
 end
 
 local shootsound = Sound("nz/deathmachine/loop_l_.wav")
@@ -73,7 +86,7 @@ function SWEP:PrimaryAttack()
 	local shootang = self.Owner:GetAimVector()
 	
 	local bullet = {}
-	bullet.Damage = 9000
+	bullet.Damage = 100000000
 	bullet.Force = 10
 	bullet.Tracer = 1
 	bullet.TracerName = "AirboatGunHeavyTracer"
@@ -99,19 +112,23 @@ function SWEP:PostDrawViewModel()
 end
 
 function SWEP:NZSpecialHolster(wep)
-	if IsValid(self.Owner) then
-		self.Owner:RemovePowerUp("deathmachine")
+	if SERVER then -- Fix clientside error by Ethorbit
+		if IsValid(self.Owner) and self.Owner.LastGrabbedDeathmachine and CurTime() > self.Owner.LastGrabbedDeathmachine then
+			self.Owner:RemovePowerUp("deathmachine")
+		end
+		return true
 	end
-	return true
 end
 
 function SWEP:OnRemove()
 	if SERVER then
-		if !IsValid(self.WepOwner:GetActiveWeapon()) or !self.WepOwner:GetActiveWeapon():IsSpecial() then
-			self.WepOwner:SetUsingSpecialWeapon(false)
+		if (IsValid(self.WepOwner)) then
+			if !IsValid(self.WepOwner:GetActiveWeapon()) or !self.WepOwner:GetActiveWeapon():IsSpecial() then
+				self.WepOwner:SetUsingSpecialWeapon(false)
+			end
+			self.WepOwner:SetActiveWeapon(nil)
+			self.WepOwner:EquipPreviousWeapon()
 		end
-		self.WepOwner:SetActiveWeapon(nil)
-		self.WepOwner:EquipPreviousWeapon()
 	end
 end
 

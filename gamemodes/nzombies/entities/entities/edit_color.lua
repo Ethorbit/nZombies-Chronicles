@@ -10,11 +10,14 @@ ENT.Category			= "Editors"
 
 ENT.NZOnlyVisibleInCreative = true
 
+ENT.NZEntity = true
+
 function ENT:Initialize()
 
 	BaseClass.Initialize( self )
 
 	--self:SetMaterial( Material("gmod/demo.png",  "noclamp smooth") )
+	self:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
 	
 	-- There can only be one!
 	if IsValid(ents.FindByClass("edit_color")[1]) and ents.FindByClass("edit_color")[1] != self then ents.FindByClass("edit_color")[1]:Remove() end
@@ -83,4 +86,12 @@ end
 --
 function ENT:UpdateTransmitState()
 	return TRANSMIT_ALWAYS
+end
+
+if CLIENT then
+	function ENT:Draw()
+		if ConVarExists("nz_creative_preview") and !GetConVar("nz_creative_preview"):GetBool() and nzRound:InState( ROUND_CREATE ) then
+			self:DrawModel()
+		end
+	end
 end

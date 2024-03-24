@@ -26,6 +26,11 @@ function meta:UnlockDoor()
 			self:Fire("addoutput", "onclose !self:open::0:-1,0,-1")
 			self:Fire("addoutput", "onclose !self:unlock::0:-1,0,-1")
 				
+			timer.Simple(5, function()
+				if (IsValid(self)) then
+					self:Remove()
+				end
+			end)
 		elseif self:IsBuyableProp() then
 			self:SetLocked(false)
 			self:BlockUnlock()
@@ -72,7 +77,7 @@ function meta:LockDoor()
 		self:SetLocked(true)
 		--self:SetCollisionGroup(COLLISION_GROUP_NONE)
 		
-		if data.buyable and !tobool(data.buyable) then return end
+		if data and data.buyable and !tobool(data.buyable) then return end
 		
 		self:Fire("close", "", 0)
 		self:Fire("Close", "", 0)

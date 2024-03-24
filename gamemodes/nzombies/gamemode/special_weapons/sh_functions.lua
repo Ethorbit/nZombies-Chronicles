@@ -1,4 +1,47 @@
 nzSpecialWeapons.Modifiers = nzSpecialWeapons.Modifiers or {}
+nzSpecialWeapons.Nades = !istable(nzSpecialWeapons.Nades) and {} or nzSpecialWeapons.Nades
+nzSpecialWeapons.SpecialNades = !istable(nzSpecialWeapons.SpecialNades) and {} or nzSpecialWeapons.SpecialNades
+nzSpecialWeapons.Knives = !istable(nzSpecialWeapons.Knives) and {} or nzSpecialWeapons.Knives
+function nzSpecialWeapons:GetItemTypes()
+	return {"Nades", "SpecialNades", "Knives"}
+end
+
+local PLAYER = FindMetaTable("Player")
+local function TranslateType(type)
+	if (nzSpecialWeapons[type]) then return type end
+	if (string.lower(type) == "knife") then 
+		return "Knives" 
+	elseif (string.lower(type) == "grenade") then 
+		return "Nades" 
+	elseif (string.lower(type) == "specialgrenade") then 
+		return "SpecialNades" 
+	else
+		return nil
+	end
+end
+
+function PLAYER:GetItem(type)
+	local newType = TranslateType(type)
+	if (!nzSpecialWeapons[newType]) then return nil end
+
+	for _,wep in pairs(self:GetWeapons()) do
+		if (nzSpecialWeapons[newType][wep:GetClass()]) then
+			return nzSpecialWeapons[newType][wep:GetClass()]
+		end
+	end
+end
+
+function nzSpecialWeapons:IsItem(type, class)
+	local newType = TranslateType(type)
+	if (!nzSpecialWeapons[newType]) then return nil end
+	return nzSpecialWeapons.newType[class]
+end
+
+function nzSpecialWeapons:GetItems(type)
+	local newType = TranslateType(type)
+	if (!nzSpecialWeapons[newType]) then return nil end
+	return nzSpecialWeapons[newType]
+end
 
 function nzSpecialWeapons:RegisterModifier(id, func, defaultdata)
 	nzSpecialWeapons.Modifiers[id] = {func, defaultdata}
@@ -39,6 +82,19 @@ function nzSpecialWeapons:ModifyWeapon(wep, id, data)
 	return bool
 end
 
+-- Why would the viewmodel not be drawing? - Ethorbit
+if CLIENT then
+	hook.Add("Think", "FixStupidFuckingViewmodel", function()
+		LocalPlayer():DrawViewModel(true)  
+	end)
+end
+
+function SwitchKnife(owner, knife)
+	owner:SetUsingSpecialWeapon(false)
+	owner:EquipPreviousWeapon()
+	knife.nzHolsterTime = nil	
+end
+
 nzSpecialWeapons:RegisterModifier("knife", function(wep, data)
 	if wep then
 		local attackholstertime = data.AttackHolsterTime
@@ -50,6 +106,10 @@ nzSpecialWeapons:RegisterModifier("knife", function(wep, data)
 				oldattack(self)
 				self.nzCanAttack = false
 			end
+		end
+
+		function wep:SecondaryAttack()
+
 		end
 		
 		--local olddeploy = wep.Deploy
@@ -78,16 +138,8 @@ nzSpecialWeapons:RegisterModifier("knife", function(wep, data)
 		function wep:Think()
 			local ct = CurTime()
 			
-			--[[if self.nzAttackTime and ct > self.nzAttackTime then
-				self:PrimaryAttack()
-				self.nzAttackTime = nil
-			end]]
-			
 			if self.nzHolsterTime and ct > self.nzHolsterTime and !self.Owner.nzSpecialButtonDown then
-				self:Holster()
-				self.Owner:SetUsingSpecialWeapon(false)
-				self.Owner:EquipPreviousWeapon()
-				self.nzHolsterTime = nil
+				SwitchKnife(self.Owner, self)
 			end
 			
 			oldthink(self)
@@ -282,15 +334,27 @@ function nzSpecialWeapons:AddKnife( class, drawonequip, attackholstertime, drawh
 	if wep then
 		if nzSpecialWeapons:ModifyWeapon(wep, "knife", {AttackHolsterTime = attackholstertime, DrawHolsterTime = drawholstertime, DrawOnEquip = drawonequip}) then
 			weapons.Register(wep, class)
+
+			nzSpecialWeapons.Knives[class] = {
+				["class"] = class
+			}
 		end
 	end
 end
 
-function nzSpecialWeapons:AddGrenade( class, ammo, drawact, throwtime, throwfunc, holstertime )
+function nzSpecialWeapons:AddGrenade( class, ammo, drawact, throwtime, throwfunc, holstertime, refill_price )
+	if (!refill_price) then refill_price = 0 end
+
 	local wep = weapons.Get(class)
 	if wep then
 		if nzSpecialWeapons:ModifyWeapon(wep, "grenade", {MaxAmmo = ammo, DrawAct = drawact, ThrowTime = throwtime, ThrowFunction = throwfunc, HolsterTime = holstertime}) then
 			weapons.Register(wep, class)
+
+			nzSpecialWeapons.Nades[class] = {
+				["class"] = class,
+				["ammo"] = ammo,
+				["price"] = refill_price
+			}
 		end
 	end
 end
@@ -300,6 +364,11 @@ function nzSpecialWeapons:AddSpecialGrenade( class, ammo, drawact, throwtime, th
 	if wep then
 		if nzSpecialWeapons:ModifyWeapon(wep, "specialgrenade", {MaxAmmo = ammo, DrawAct = drawact, ThrowTime = throwtime, ThrowFunction = throwfunc, HolsterTime = holstertime}) then
 			weapons.Register(wep, class)
+
+			nzSpecialWeapons.SpecialNades[class] = {
+				["class"] = class,
+				["ammo"] = ammo
+			}
 		end
 	end
 end
@@ -348,15 +417,35 @@ if CLIENT then
 			if !ammo or ply:GetAmmoCount(ammo) >= 1 then
 				--local wep = ply:GetSpecialWeaponFromCategory( id )
 				if IsValid(wep) then
+					if (id == "knife") then
+						local wepv = ply:GetActiveWeapon()
+						if IsValid(wepv) and wepv:IsTFA() and wepv:HasSpecialBash() then
+						else
+							ply:SelectWeapon(wep:GetClass())
+						end
+					return end
+
 					ply:SelectWeapon(wep:GetClass())
+				elseif (ply:Alive() and ply:Team() != 1002) then
+					-- There could be a legitimate reason for this,
+					-- but we should tell the server to update our
+					-- special weapons anyway just incase, and do this 
+					-- with a cooldown to prevent performance issues:
+					if (!isnumber(OurLastSpecialUpdateTime) or CurTime() - OurLastSpecialUpdateTime > 2.5) then
+						OurLastSpecialUpdateTime = CurTime()
+						net.Start("nzUpdateMyWeapons")
+						net.SendToServer()
+					end
 				end
 			end
 		end
 	end)
 	
-	hook.Add("HUDWeaponPickedUp", "nzSpecialWeaponAddClient", function(wep)
-		local ply = LocalPlayer()
-		local id = IsValid(wep) and wep:IsSpecial() and wep:GetSpecialCategory()
+	hook.Add("HUDWeaponPickedUp", "nzSpecialWeaponAddClient", function(wep)	
+		if NZHasWhosWhoClone then return end -- Fix (By Ethorbit) annoying IsSpecial() error showing for clients when they go down with Who's who
+
+		local ply = LocalPlayer()	
+		local id = IsValid(wep) and isfunction(wep.IsSpecial) and wep:IsSpecial() and wep:GetSpecialCategory()
 		if !ply.NZSpecialWeapons then ply.NZSpecialWeapons = {} end
 		if id and !IsValid(ply.NZSpecialWeapons[id]) then
 			ply.NZSpecialWeapons[id] = wep
@@ -365,6 +454,15 @@ if CLIENT then
 end
 
 hook.Add("PlayerButtonDown", "nzSpecialWeaponsHandler", function(ply, but)
+	local wepv = ply:GetActiveWeapon()
+	if but == ply:GetInfoNum("nz_key_knife", KEY_V) and isfunction(wepv.HasSpecialBash) and wepv:HasSpecialBash() then
+		wepv:AltAttack()
+
+		if SERVER then
+			wepv:CallOnClient("AltAttack", "")
+		end
+	return end
+
 	if but == ply:GetInfoNum("nz_key_knife", KEY_V) or
 	but == ply:GetInfoNum("nz_key_grenade", KEY_G) or
 	but == ply:GetInfoNum("nz_key_specialgrenade", KEY_B) then
@@ -386,9 +484,8 @@ end)
 
 local wep = FindMetaTable("Weapon")
 local ply = FindMetaTable("Player")
-
-function wep:IsSpecial()
-	return self.NZSpecialCategory and true or false
+function wep:HasSpecialBash()
+	return IsValid(self) and self:IsTFA() and self.AltAttack and self.Base == "tfa_bash_base" and self.ReplaceKnife
 end
 
 function wep:GetSpecialCategory()
@@ -400,8 +497,12 @@ function ply:GetSpecialWeaponFromCategory( id )
 	return self.NZSpecialWeapons[id] or nil
 end
 
+function wep:IsSpecial()
+	return IsValid(self) and self.NZSpecialCategory and true or false
+end
+
 function ply:EquipPreviousWeapon()
-	if IsValid(self.NZPrevWep) then -- If the previously used weapon is valid, use that
+	if IsValid(self.NZPrevWep) and !self.NZPrevWep:IsSpecial() then -- If the previously used weapon is valid, use that
 		if SERVER then
 			self:SetActiveWeapon(nil)
 		end
@@ -418,6 +519,19 @@ function ply:EquipPreviousWeapon()
 		end
 		if SERVER then
 			self:SetActiveWeapon(nil)
+		end
+	end
+end
+
+-- Helper function to auto call Add Special Weapon for any special weapons they have
+-- Special weapons are usually handled automatically, however fails sometimes when they spawn
+-- for their first time resulting in the need of this function..
+function ply:UpdateSpecialWeapons() 
+	if (IsValid(self)) then
+		for _,v in pairs(self:GetWeapons()) do
+			if (IsValid(v) and v:IsSpecial()) then
+				self:AddSpecialWeapon(v)
+			end
 		end
 	end
 end
@@ -453,17 +567,18 @@ if SERVER then
 	end
 
 	-- This hook only works server-side
-	hook.Add("WeaponEquip", "nzSetSpecialWeapons", function(wep)
+	hook.Add("WeaponEquip", "nzSetSpecialWeapons", function(wep, player)
 		if wep:IsSpecial() then
 			-- 0 second timer for the next tick where wep's owner is valid
 			timer.Simple(0, function()
+				if (!IsValid(wep)) then return end
 				local ply = wep:GetOwner()
 				if IsValid(ply) then
 					local oldwep = ply:GetSpecialWeaponFromCategory( wep:GetSpecialCategory() )
 					--print(wep, oldwep)
-					if IsValid(oldwep) then
-						ply:StripWeapon(oldwep:GetClass())
-					end
+					-- if IsValid(oldwep) then
+					-- 	ply:StripWeapon(oldwep:GetClass())
+					-- end
 					ply:AddSpecialWeapon(wep)
 				end
 			end)
@@ -472,18 +587,48 @@ if SERVER then
 end
 
 -- Players switching to special weapons can then no longer switch away until its action has been completed
-function GM:PlayerSwitchWeapon(ply, oldwep, newwep)
-	print(ply, oldwep, newwep)
-	if IsValid(oldwep) and IsValid(newwep) then
-	
-		if !oldwep:IsSpecial() then
-			if oldwep != newwep then
-				ply.NZPrevWep = oldwep -- Store previous weapon if it's not special and not the same
+if SERVER then
+	hook.Add("WeaponEquip", "PrevWepFix", function(wep, ply)
+		if (IsValid(ply) and IsValid(wep)) then
+			if (!IsValid(ply.NZPrevWep)) then
+				ply.NZPrevWep = wep
 			end
-			ply:SetUsingSpecialWeapon(false)
 		end
-		
-		if ply:GetUsingSpecialWeapon() then
+	end)
+end
+
+if CLIENT then
+	hook.Add("HUDWeaponPickedUp", "PrevWepFix", function(wep)
+		if (IsValid(wep) and wep:IsWeapon() and isfunction(wep.IsSpecial) and !wep:IsSpecial()) then
+			LocalPlayer().NZPrevWep = wep
+		end
+	end)
+end
+
+function GM:PlayerSwitchWeapon(ply, oldwep, newwep)
+ 	--print(ply, oldwep, newwep)
+	if IsValid(oldwep) and IsValid(newwep) then
+		if (!newwep:IsSpecial() and !oldwep:IsSpecial()) then
+			ply.NZPrevWep = newwep
+			--print(ply, oldwep, newwep)
+			--print("We're retarded and set the old weapon as: " .. newwep:GetClass())
+
+			-- if isfunction(ply.SetUsingSpecialWeapon) then
+			-- 	ply:SetUsingSpecialWeapon(false)
+			-- end
+		end
+
+		-- if !oldwep:IsSpecial() then
+		-- 	if oldwep != newwep and IsValid(oldwep) then
+		-- 		ply.NZPrevWep = oldwep -- Store previous weapon if it's not special and not the same
+		-- 	end
+
+		-- 	if isfunction(ply.SetUsingSpecialWeapon) then
+		-- 		ply:SetUsingSpecialWeapon(false)
+		-- 	end
+		-- end
+
+		if isfunction(ply.GetUsingSpecialWeapon) and ply:GetUsingSpecialWeapon() then
 			if oldwep:IsSpecial() then
 				if oldwep.NZSpecialHolster then
 					local allow = oldwep:NZSpecialHolster(newwep)

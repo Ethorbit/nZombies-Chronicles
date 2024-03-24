@@ -12,12 +12,15 @@ function plyMeta:ReadyUp()
 		return false
 	end
 
-	--Check if we have enough player spawns
-	if nzMapping:CheckEnoughPlayerSpawns() == false then
-		PrintMessage( HUD_PRINTTALK, "Can't ready you up, because not enough player spawns have been set. We need " .. #player.GetAll() .. " but only have " .. #ents.FindByClass("player_spawns") .. "." )
-		return false
-	end
+    --self:PrintMessage( HUD_PRINTTALK, "An unknown error occurred when trying to spawn you. Please contact an administrator about this.")
+    --return false
 
+	--Check if we have enough player spawns. Commented out by Ethorbit as I fixed player spawning in the round_meta. This was the most unnecessary restriction ever!
+    --if nzMapping:CheckEnoughPlayerSpawns() == false then
+	--	PrintMessage( HUD_PRINTTALK, "Can't ready you up, because not enough player spawns have been set. We need " .. #player.GetAll() .. " but only have " .. #ents.FindByClass("player_spawns") .. "." )
+	--	return false
+	--end  
+     
 	if nzRound:InState( ROUND_WAITING ) or nzRound:InState( ROUND_INIT ) then
 		if !self:IsReady() then
 			PrintMessage( HUD_PRINTTALK, self:Nick() .. " is ready!" )
@@ -36,7 +39,7 @@ function plyMeta:ReadyUp()
 		end
 	end
 
-	return true
+    return true
 
 end
 
@@ -54,10 +57,10 @@ function plyMeta:UnReady()
 end
 
 function plyMeta:DropIn()
-	if GetConVar("nz_round_dropins_allow"):GetBool() and !self:IsPlaying() then
+    if GetConVar("nz_round_dropins_allow"):GetBool() and !self:IsPlaying() then
 		self:SetReady( true )
 		self:SetPlaying( true )
-		self:SetTeam( TEAM_PLAYERS )
+		--self:SetTeam( TEAM_PLAYERS )
 		self:RevivePlayer()
 		hook.Call( "OnPlayerDropIn", nzRound, self )
 		if nzRound:GetNumber() == 1 and nzRound:InState(ROUND_PREP) then
@@ -72,8 +75,26 @@ function plyMeta:DropIn()
 end
 
 function plyMeta:DropOut()
-	if self:IsPlaying() then
+    -- Creative Mode DropOut fix by Ethorbit
+    -- previously it'd just stay enabled until an admin manually disabled it...
+    if self:IsInCreative() then
+        local anotherPlyInCreative = false
+        for _,ply in pairs(player.GetAll()) do
+            if ply:IsInCreative() then
+                anotherPlyInCreative = true
+                break
+            end
+        end
+
+        if !anotherPlyInCreative then
+            print("[NZ] Creative Mode was forced off because everyone dropped out.")
+            nzRound:Create(false)
+        end
+    end
+
+    if self:IsPlaying() then
 		PrintMessage( HUD_PRINTTALK, self:Nick().." has dropped out of the game!" )
+		self:SetTeam(1002)
 		self:SetReady( false )
 		self:SetPlaying( false )
 		self:RevivePlayer()
@@ -84,6 +105,9 @@ function plyMeta:DropOut()
 end
 
 function plyMeta:ReSpawn()
+    if !IsValid(nzRound:GetPlayerSpawn(self)) then
+        nzRound:UpdatePlayerSpawns()
+    end
 
 	--Setup a player
 	player_manager.SetPlayerClass( self, "player_ingame" )
@@ -91,7 +115,6 @@ function plyMeta:ReSpawn()
 		self:Spawn()
 		self:SetTeam( TEAM_PLAYERS )
 	end
-
 end
 
 function plyMeta:GiveCreativeMode()

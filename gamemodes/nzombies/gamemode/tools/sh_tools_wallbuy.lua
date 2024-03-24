@@ -48,7 +48,7 @@ nzTools:CreateTool("wallbuy", {
 
 		local DProperties = vgui.Create( "DProperties", frame )
 		DProperties:SetSize( 280, 180 )
-		DProperties:SetPos( 10, 10 )
+		DProperties:SetPos( 110, 20 )
 		
 		function DProperties.CompileData()
 			if weapons.Get( valz["Row1"] ) then

@@ -9,7 +9,19 @@ function ENT:Initialize()
     --change those after creation
     self:SetModel( "models/player/kleiner.mdl" )
 	self.OwnerData = {}
-    if SERVER then self:GiveWeapon( "weapon_pistol" ) end
+	self.WhosWhoClone = true
+	self:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
+	self:AddEFlags(EFL_FORCE_CHECK_TRANSMIT)
+
+	if SERVER then self:GiveWeapon( "weapon_pistol" ) end
+	
+	-- if CLIENT then
+	-- 	DrawWhosWhoOverlay()
+	-- end
+end
+
+function ENT:UpdateTransmitState() -- Always transmit to avoid clientside entity awareness issues
+	return TRANSMIT_ALWAYS
 end
 
 function ENT:SetupDataTables()
@@ -51,6 +63,13 @@ function ENT:GiveWeapon( wepclass )
 
 end
 
+if SERVER then
+	function ENT:Think()
+		if (!IsValid(self:GetPerkOwner()) || !self:GetPerkOwner():Alive() || self:GetPerkOwner():IsSpectating()) then
+			self:Remove() -- We're done here, our owner is gone.
+		end
+	end
+end
 
 local mat = Material("Models/effects/comball_tape")
 function ENT:Draw()
@@ -67,7 +86,7 @@ function ENT:InVehicle()
 	return false
 end
 
-function ENT:RevivePlayer()
+function ENT:RevivePlayer(revivor)
 	local ply = self:GetPerkOwner()
 	print(self:GetPerkOwner())
 	PrintTable(self.OwnerData)
@@ -81,14 +100,47 @@ function ENT:RevivePlayer()
 			ply:Spawn()
 		end
 		
-		ply:SetPos(self:GetPos())
+		-- This is bad practice because it can teleport you in the ground
+		--ply:SetPos(self:GetPos())
+		--ply:SetEyeAngles(self:GetAngles())
+		-- Instead, we can teleport them to the closest player to their clone:	
+		local closestPly = revivor
+		
+		if !isentity(closestPly) or !IsValid(closestPly) then
+			local lastPos = nil
+			for _,v in pairs(player.GetAllPlayingAndAlive()) do
+				if (lastPos == nil or isvector(lastPos) and v:GetPos():DistToSqr(self:GetPos()) < self:GetPos():DistToSqr(lastPos)) then
+					if (v:GetNotDowned() and v != ply and !IsValid(v.WhosWhoClone) or v == ply) then 
+						closestPly = v
+						lastPos = v:GetPos()
+					end
+				end
+			end
+		end
+
+		if (IsValid(closestPly)) then
+			ply:SetPos(closestPly:GetPos())
+		else
+			ply:SetPos(self:GetPos())
+		end
+
 		ply:SetEyeAngles(self:GetAngles())
 		
 		-- Yeah no, Who's Who doesn't actually let you keep your clone's perks or weapons
 		ply:RemovePerks()
 		ply:StripWeapons()
 		
-		for k,v in pairs(self.OwnerData.weps) do
+		for i=1, #self.OwnerData.perks do
+			local v = self.OwnerData.perks[i]
+			if (#ply:GetPerks() >= 3) then break end -- Don't allow them to get back stuff like Tombstone glitch perks
+
+			if v != "whoswho" then
+				ply:GivePerk(v)
+			end
+		end
+	
+		for i=1, #self.OwnerData.weps do -- Do this instead of a pairs loop
+			local v = self.OwnerData.weps[i]
 			local wep = ply:Give(v.class)
 			if v.pap then
 				timer.Simple(0, function()
@@ -97,12 +149,37 @@ function ENT:RevivePlayer()
 					end
 				end)
 			end
-		end
-		for k,v in pairs(self.OwnerData.perks) do
-			if v != "whoswho" then
-				ply:GivePerk(v)
+
+			-- Set its ammo back to what it was before
+			if IsValid(wep) then 
+				wep:RestoreTrackedAmmo()
 			end
 		end
+
+		ply:RestoreGrenadeAmmo()
+		ply:EquipPreviousWeapon()
+	
+		-- for k,v in pairs(self.OwnerData.weps) do
+		-- 	local wep = ply:Give(v.class)
+		-- 	if v.pap then
+		-- 		timer.Simple(0, function()
+		-- 			if IsValid(wep) then
+		-- 				wep:ApplyNZModifier("pap")
+		-- 			end
+		-- 		end)
+		-- 	end
+		-- end
+
+
+
+		-- for k,v in pairs(self.OwnerData.perks) do
+		-- 	if (#ply:GetPerks() >= 4) then break end -- Don't allow them to get back stuff like Tombstone glitch perks
+
+		-- 	if v != "whoswho" then
+		-- 		if (#ply:GetPerks() >= 4) then return end -- ^^^^^^^^^^^^^^^
+		-- 		ply:GivePerk(v)
+		-- 	end
+		-- end
 		ply:GiveMaxAmmo()
 	end
 	
@@ -117,7 +194,9 @@ function ENT:RevivePlayer()
 		revivor:StripWeapon("nz_revive_morphine") -- Remove the viewmodel again
 	end
 	
-	self:Remove()
+	if SERVER then
+		self:Remove()
+	end
 end
 
 function ENT:StartRevive(revivor, nosync)
@@ -150,14 +229,31 @@ function ENT:StopRevive(nosync)
 end
 
 function ENT:KillDownedPlayer()
-	self:Remove()
+	-- This is really important, if they are down still, they will suffer really weird downed visuals
+	-- unless we revive them on the server as well..
+	if (IsValid(self:GetPerkOwner()) and !self:GetPerkOwner():GetNotDowned()) then
+		self:GetPerkOwner():RevivePlayer()
+	end
+
+	if SERVER then
+		self:Remove()
+	end
 end
 
 function ENT:OnRemove()
 	local ply = self:GetPerkOwner()
+
 	if (IsValid(ply) and ply:IsPlayer()) then
+		if SERVER and self.OwnerHasTombstone and (!ply:Alive() or ply:IsSpectating()) then -- If they had Tombstone, let's make sure their tomb actually drops now that they and their clone are dead
+			nzRevive.TombstoneSuicide(ply, self.OwnerData.weps, self.OwnerData.perks, true)
+		end
+
+		ply:SetWhosWhoClone(nil)
+		ply.DownWeaponData = nil
+		ply.DownPerkData = nil
+		
 		-- No more refunds for you once you become your clone mate!
-		ply.WhosWhoMoney = nil
+		ply.WhosWhoMoney = nil	
 	end
 	
 	local revivor = nzRevive.Players[id] and nzRevive.Players[id].RevivePlayer or nil

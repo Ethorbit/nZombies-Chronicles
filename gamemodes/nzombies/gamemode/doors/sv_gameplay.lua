@@ -52,7 +52,7 @@ function nzDoors:CloseLinkedDoors( link, ply )
 	for k,v in pairs(self.MapDoors) do
 		if v.flags then
 			local doorlink = v.flags.link
-			if doorlink and doorlink == link then
+			if doorlink and doorlink == link and v.ButtonLock then
 				if v:IsButton() then
 					v:ButtonLock()
 					v:SetUseType( SIMPLE_USE )
@@ -94,10 +94,11 @@ function nzDoors:LockAllDoors()
 				v:Fire("addoutput", "onclose !self:open::0:-1,0,-1")
 				v:Fire("addoutput", "onclose !self:unlock::0:-1,0,-1")
 				print("Added lock output to", v)
+				
 				-- They now get that output through OpenDoor too, but for safety
 			end
 		-- Allow locking buttons
-		elseif v:IsButton() and self.MapDoors[v:DoorIndex()] then
+		elseif v:IsButton() and v.ButtonLock and self.MapDoors[v:DoorIndex()] then
 			v:ButtonLock()
 			v:SetUseType( SIMPLE_USE )
 		end
@@ -119,6 +120,12 @@ function nzDoors:BuyDoor( ply, ent )
 	-- If it has a price and it can be bought
 	if price != nil and tonumber(buyable) == 1 then
 		ply:Buy(price, ent, function()
+			if (util.NetworkStringToID("VManip_SimplePlay") != 0) then
+				net.Start("VManip_SimplePlay")
+				net.WriteString("use")
+				net.Send(ply)
+			end
+
 			if ent:IsLocked() then
 				-- If this door doesn't require electricity or if it does, then if the electricity is on at the same time
 				if (req_elec == 0 or (req_elec == 1 and IsElec())) then
@@ -128,6 +135,8 @@ function nzDoors:BuyDoor( ply, ent )
 					else
 						self:OpenLinkedDoors( link, ply )
 					end
+
+					hook.Call("XPFromDoor", nil, ply, price)
 					return true
 				end
 			end
@@ -144,20 +153,25 @@ end
 
 -- Hooks
 
-function nzDoors.OnUseDoor( ply, ent )
-	-- Downed players can't use anything!
-	if !ply:GetNotDowned() then return false end
+--function nzDoors.OnUseDoor( ply, ent )
+	-- -- Downed players can't use anything!
+	-- if !ply:GetNotDowned() then return false end
 	
-	-- Players can't use stuff while using special weapons! (Perk bottles, knives, etc)
-	if IsValid(ply:GetActiveWeapon()) and ply:GetActiveWeapon():IsSpecial() then return false end
+	-- -- Players can't use stuff while using special weapons! (Perk bottles, knives, etc)
+	-- if IsValid(ply:GetActiveWeapon()) and ply:GetActiveWeapon():IsSpecial() then return false end
 	
-	if ent:IsBuyableEntity() then
-		if ent.buyable == nil or tobool(ent.buyable) then
-			nzDoors:BuyDoor( ply, ent )
-		end
-	end
-end
-hook.Add( "PlayerUse", "nzPlayerBuyDoor", nzDoors.OnUseDoor )
+	-- if ent:IsBuyableEntity() then
+	-- 	if ent.buyable == nil or tobool(ent.buyable) then
+	-- 		nzDoors:BuyDoor( ply, ent )
+	-- 	end
+	-- end
+-- end
+-- hook.Add( "PlayerUse", "nzPlayerBuyDoor", nzDoors.OnUseDoor )
+
+-- ^ Above is BAD, because if you're reviving someone near a door it will make you purchase it! Gross!
+-- Proper solution in sh_gameplay now
+
+
 
 function nzDoors.CheckUseDoor(ply, ent)
 	--print(ply, ent)
@@ -178,3 +192,9 @@ function nzDoors.CheckUseDoor(ply, ent)
 	
 end
 hook.Add("FindUseEntity", "nzCheckDoor", nzDoors.CheckUseDoor)
+
+-- Seems USE opens a locked door?!?!?!? When did this happen?!
+-- anyway, let's stop that bullshit here
+hook.Add("AcceptInput", "NZKeepDoorsFuckingClosed", function(ent, input, activator, caller, value)
+	if (input == "Use" and IsValid(ent) and ent:IsLocked()) then return true end
+end)

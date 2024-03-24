@@ -8,6 +8,8 @@ ENT.AdminOnly			= true
 ENT.PrintName			= "Sky Editor"
 ENT.Category			= "Editors"
 
+ENT.NZEntity = true
+
 local oldsky
 
 ENT.NZOnlyVisibleInCreative = true
@@ -16,7 +18,7 @@ function ENT:Initialize()
 
 	BaseClass.Initialize( self )
 	self:SetMaterial( "gmod/edit_sky" )
-	
+	self:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
 	
 
 	--
@@ -99,4 +101,12 @@ end
 function ENT:UpdateTransmitState()
 
 	return TRANSMIT_ALWAYS
+end
+
+if CLIENT then
+	function ENT:Draw()
+		if ConVarExists("nz_creative_preview") and !GetConVar("nz_creative_preview"):GetBool() and nzRound:InState( ROUND_CREATE ) then
+			self:DrawModel()
+		end
+	end
 end

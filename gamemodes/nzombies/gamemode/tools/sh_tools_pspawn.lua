@@ -1,5 +1,5 @@
 nzTools:CreateTool("pspawn", {
-	displayname = "Player Spawn Creator",
+	displayname = "Player Spawn",
 	desc = "LMB: Place Spawnpoint, RMB: Remove Spawnpoint",
 	condition = function(wep, ply)
 		return true
@@ -22,7 +22,7 @@ nzTools:CreateTool("pspawn", {
 
 	end
 }, {
-	displayname = "Player Spawn Creator",
+	displayname = "Player Spawn",
 	desc = "LMB: Place Spawnpoint, RMB: Remove Spawnpoint",
 	icon = "icon16/user.png",
 	weight = 2,

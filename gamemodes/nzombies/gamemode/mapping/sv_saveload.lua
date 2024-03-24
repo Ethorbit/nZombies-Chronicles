@@ -16,7 +16,7 @@ function nzMapping:SaveConfig(name)
 	end
 
 	main.version = self.Version
-	
+
 	-- Loop through our savemodules
 	for id, funcs in pairs(savemodules) do
 		print("[nZ] Saving module ["..id.."]...")
@@ -47,7 +47,7 @@ function nzMapping:SaveConfig(name)
 
 	file.Write( configname, util.TableToJSON( main ) ) -- Save it all in a JSON format
 	PrintMessage( HUD_PRINTTALK, "[nZ] Saved to garrysmod/data/" .. configname) -- And write it to our file! >:D
-	
+
 	nzMapping.CurrentConfig = name
 
 end
@@ -69,13 +69,15 @@ function nzMapping:ClearConfig(noclean)
 		["nz_triggerzone"] = true,
 		["nz_script_triggerzone"] = true,
 		["nz_script_prop"] = true,
+        ["nz_workbench_prop"] = true,
 	}
-	
+
 	-- Now loop through our savemodules
 	for id, funcs in pairs(savemodules) do
 		print("[nZ] Clearing config for module ["..id.."]...")
 		if funcs.cleanents then -- If the module has a table of entities
-			for k,v in pairs(funcs.cleanents) do
+			local ents = istable(funcs.cleanents) and funcs.cleanents or funcs:cleanents()  -- Added by Ethorbit, it was retarded that it HAD to be a table and that there was no function support...
+			for _,v in pairs(ents) do
 				entClasses[v] = true -- Then mark these to also be cleared
 			end
 		end
@@ -102,7 +104,7 @@ function nzMapping:ClearConfig(noclean)
 	nzNav.Locks = {}
 	nzMapping.Settings = {}
 	nzMapping.MarkedProps = {}
-	
+
 	for k,v in pairs(player.GetAll()) do
 		nzMapping:SendMapData(v)
 	end
@@ -140,10 +142,10 @@ function nzMapping:LoadConfig( name, loader )
 
 	if file.Exists( filepath, location )then
 		print("[nZ] MAP CONFIG FOUND!")
-		
+
 		local cfg = string.Explode(";", string.StripExtension(name))
 		local map, configname, workshopid = string.sub(cfg[1], 4), cfg[2], cfg[3]
-		
+
 		-- BUT WAIT! Is it another map? :O
 		if map and map != game.GetMap() then
 			file.Write("nz/autoload.txt", loader and name.."@"..loader:SteamID() or name.."@INVALIDPLAYER")
@@ -156,7 +158,7 @@ function nzMapping:LoadConfig( name, loader )
 		nzMapping:UnloadScript()
 
 		local data = util.JSONToTable( file.Read( filepath, location ) )
-		
+
 		if !data then
 			print("Critical Warning: Could not read data from file! Is the save corrupted? It might be possible to recover with manual text editing.")
 			return
@@ -183,7 +185,7 @@ function nzMapping:LoadConfig( name, loader )
 		end
 
 		self:ClearConfig(true) -- We pass true to not clean up the map
-		
+
 		-- Then we can load if entity extensions are to be used
 		if data.MapSettings then
 			nzMapping:LoadMapSettings(data.MapSettings)
@@ -191,7 +193,7 @@ function nzMapping:LoadConfig( name, loader )
 		end
 		-- That we then manually call here
 		nzMapping:CleanUpMap()
-		
+
 
 		print("[nZ] Loading " .. filepath .. "...")
 
@@ -215,7 +217,7 @@ function nzMapping:LoadConfig( name, loader )
 		if data.NavTable then
 			nzNav.Locks = data.NavTable
 		end
-		
+
 		for k,v in pairs(player.GetAll()) do
 			nzMapping:SendMapData(v)
 		end
@@ -241,7 +243,7 @@ function nzMapping:LoadConfig( name, loader )
 		nzMapping.CurrentConfig = configname
 		nzMapping.OfficialConfig = official
 		nzMapping.ConfigFile = name
-		
+
 		if !nzRound:InState(ROUND_CREATE) then
 			for k,v in pairs(ents.GetAll()) do
 				if v.NZOnlyVisibleInCreative then -- This is set in each entity's file
@@ -250,21 +252,25 @@ function nzMapping:LoadConfig( name, loader )
 			end
 		end
 
+		Spawner:ResetSpawners()
+
 		print("[nZ] Finished loading map config.")
 		hook.Call("PostConfigLoad", nil, true)
 	else
 		print(filepath)
 		print("[nZ] Warning: NO MAP CONFIG FOUND! Make a config in game using the /create command, then use /save to save it all!")
 		hook.Call("PostConfigLoad", nil, false)
-	end	
+	end
 
 end
 
 -- The function to clean up the map but not the config!
 function nzMapping:CleanUpMap()
+	nzDoors.OpenedLinks = {}
+	BroadcastLua("nzDoors.OpenedLinks = {}")
 
 	hook.Call("PreConfigMapCleanup")
-	
+
 	-- Some default entities to spare:
 	local entClasses = {
 		--["edit_fog"] = true,
@@ -276,15 +282,17 @@ function nzMapping:CleanUpMap()
 		["nz_triggerzone"] = true,
 		["nz_script_triggerzone"] = true,
 		["nz_script_prop"] = true,
+        ["nz_workbench_prop"] = true,
 	}
-	
+
 	-- Prepare to save module data
 	local module_savetable = {}
-	
+
 	-- Loop through modules
 	for id, funcs in pairs(savemodules) do
 		if funcs.cleanents then
-			for k,v in pairs(funcs.cleanents) do
+			local ents = istable(funcs.cleanents) and funcs.cleanents or funcs:cleanents()  -- Added by Ethorbit, it was retarded that it HAD to be a table and that there was no function support...
+			for k,v in pairs(ents) do
 				entClasses[v] = true -- All entities marked will this time be SPARED from the map cleanup
 			end
 		end
@@ -305,7 +313,7 @@ function nzMapping:CleanUpMap()
 			end
 		end
 	end
-	
+
 	-- Now we clean up the map, sparing the marked entities!
 	game.CleanUpMap(false, table.GetKeys(entClasses))
 
@@ -336,7 +344,7 @@ function nzMapping:CleanUpMap()
 			end
 		end
 	end
-	
+
 	hook.Call("PostConfigMapCleanup")
 end
 
@@ -373,11 +381,11 @@ hook.Add("Initialize", "nz_Loadmaps", function()
 				}))
 			end
 		end
-		if !autoload then 
+		if !autoload then
 			autoload = "nz_"..game.GetMap()..".txt"
 			isautomated = true
 		end
-		
+
 		local map = string.sub(string.Explode(";", string.StripExtension(autoload))[1], 4)
 		if map and map != game.GetMap() then
 			file.Write("nz/autoload.txt", "")
@@ -386,8 +394,9 @@ hook.Add("Initialize", "nz_Loadmaps", function()
 				return
 			end
 		end
-		
+
 		nzMapping:LoadConfig( autoload, IsValid(loader) and loader or nil )
+		nzMapping:LoadScript(autoload) -- Added by Ethorbit, not sure why this was missing...
 	end)
 end)
 
@@ -404,6 +413,6 @@ function nzMapping:GetConfigs()
 	tbl.configs = file.Find( "nz/nz_*", "DATA" )
 	tbl.workshopconfigs = file.Find( "nz/nz_*", "LUA" )
 	tbl.officialconfigs = file.Find("gamemodes/nzombies/officialconfigs/*", "GAME")
-	
+
 	return tbl
 end

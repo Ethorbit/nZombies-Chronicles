@@ -1,3 +1,19 @@
+nzPerks.ValidBottles = nzPerks.ValidBottles or {"nz_perk_bottle"}
+
+function nzPerks:NewBottle(perk_id, weapon_class) -- Added by Ethorbit for perks with custom bottle weapons support
+    local data = nzPerks.Data
+
+    if data.perk_id then
+        data.perk_id.bottle_ent = weapon_class
+		nzSpecialWeapons:AddSpecialWeapon(weapon_class)
+		nzConfig.AddWeaponToBlacklist(weapon_class)
+		nzPerks.ValidBottles[weapon_class] = true
+    end
+end
+
+function nzPerks:GetBottles(nocopy) -- Added by Ethorbit now that there can be more than 1 bottle entity
+	return nocopy and nzPerks.ValidBottles or table.Copy(nzPerks.ValidBottles)
+end
 
 function nzPerks:NewPerk(id, data)
 	if SERVER then
@@ -34,21 +50,21 @@ end
 
 function nzPerks:GetIcons()
 	local tbl = {}
-	
+
 	for k,v in pairs(nzPerks.Data) do
 		tbl[k] = v.icon
 	end
-	
+
 	return tbl
 end
 
 function nzPerks:GetBottleMaterials()
 	local tbl = {}
-	
+
 	for k,v in pairs(nzPerks.Data) do
 		tbl[k] = v.material
 	end
-	
+
 	return tbl
 end
 
@@ -61,8 +77,8 @@ nzPerks:NewPerk("jugg", {
 	icon = Material("perk_icons/jugg.png", "smooth unlitgeneric"),
 	color = Color(255, 100, 100),
 	func = function(self, ply, machine)
-			ply:SetMaxHealth(250)
-			ply:SetHealth(250)
+			ply:SetMaxHealth(210)
+			ply:SetHealth(210)
 	end,
 	lostfunc = function(self, ply)
 		ply:SetMaxHealth(100)
@@ -79,17 +95,21 @@ nzPerks:NewPerk("dtap", {
 	icon = Material("perk_icons/dtap.png", "smooth unlitgeneric"),
 	color = Color(255, 255, 100),
 	func = function(self, ply, machine)
-		local tbl = {}
-		for k,v in pairs(ply:GetWeapons()) do
-			if v:IsFAS2() then
-				table.insert(tbl, v)
-			end
-		end
-		if tbl[1] != nil then
-			for k,v in pairs(tbl) do
-				v:ApplyNZModifier("dtap")
-			end
-		end
+		-- for k,v in pairs(ply:GetWeapons()) do
+		-- 	v:ApplyNZModifier("dtap")
+		-- end
+
+		-- local tbl = {}
+		-- for k,v in pairs(ply:GetWeapons()) do
+		-- 	if v:IsFAS2() then
+		-- 		table.insert(tbl, v)
+		-- 	end
+		-- end
+		-- if tbl[1] != nil then
+		-- 	for k,v in pairs(tbl) do
+		-- 		v:ApplyNZModifier("dtap")
+		-- 	end
+		-- end
 	end,
 	lostfunc = function(self, ply)
 		if !ply:HasPerk("dtap2") then
@@ -180,22 +200,38 @@ nzPerks:NewPerk("pap", {
 	icon = Material("vulture_icons/pap.png", "smooth unlitgeneric"),
 	color = Color(200, 220, 220),
 	condition = function(self, ply, machine)
+		if !IsValid(machine) or !IsValid(ply) then return false end -- Don't let the ghost grab things I guess?
 		local wep = ply:GetActiveWeapon()
-		if (!wep:HasNZModifier("pap") or wep:CanRerollPaP()) and !machine:GetBeingUsed() then
-			local reroll = false
-			if wep:HasNZModifier("pap") and wep:CanRerollPaP() then
-				reroll = true
+
+		-- They can't upgrade a weapon if there's currently a weapon in our slot
+		if IsValid(machine.papfly) then return false end
+
+		-- Upgrading current weapon
+		if (!IsValid(wep)) then return false end
+		if (wep:IsSpecial()) then return false end
+		if (IsValid(wep)) then
+			local replacement = nzWeps:GetReplacement(wep:GetClass())
+			if replacement and replacement.NZOnlyAllowOnePlayerToUse and nzWeps:IsSoloWeaponInUse(replacement.ClassName) then return false end
+
+			local is_replaceable = nzWeps:IsReplaceable(wep:GetClass())
+			if is_replaceable and wep:HasNZModifier("pap") and wep:CanRerollPaP() and !wep.NZPaPReplacement then return false end
+			if (!wep:HasNZModifier("pap") or wep:CanRerollPaP()) and !machine:GetBeingUsed() then
+				local reroll = false
+				if (wep:HasNZModifier("pap") and wep:CanRerollPaP()) then
+					if (!wep.AllowReRollAtts and !is_replaceable) then return false end
+					reroll = true
+				end
+				local cost = reroll and 2000 or 5000
+				return ply:GetPoints() >= cost
+			-- else
+			-- 	ply:PrintMessage( HUD_PRINTTALK, "This weapon is already Pack-a-Punched")
+			-- 	return false
 			end
-			local cost = reroll and 2000 or 5000
-			return ply:GetPoints() >= cost
-		else
-			ply:PrintMessage( HUD_PRINTTALK, "This weapon is already Pack-a-Punched")
-			return false
 		end
 	end,
 	func = function(self, ply, machine)
 		local wep = ply:GetActiveWeapon()
-	
+
 		local reroll = false
 		if wep:HasNZModifier("pap") and wep:CanRerollPaP() then
 			reroll = true
@@ -204,13 +240,13 @@ nzPerks:NewPerk("pap", {
 
 		ply:Buy(cost, machine, function()
 			hook.Call("OnPlayerBuyPackAPunch", nil, ply, wep, machine)
-		
+
 			ply:Give("nz_packapunch_arms")
 
 			machine:SetBeingUsed(true)
 			machine:EmitSound("nz/machines/pap_up.wav")
 			local class = wep:GetClass()
-			
+
 			local e = EffectData()
 			e:SetEntity(machine)
 			local ang = machine:GetAngles()
@@ -220,6 +256,7 @@ nzPerks:NewPerk("pap", {
 
 			wep:Remove()
 			local wep = ents.Create("pap_weapon_fly")
+			machine.papfly = wep
 			local startpos = machine:GetPos() + ang:Forward()*30 + ang:Up()*25 + ang:Right()*-3
 			wep:SetPos(startpos)
 			wep:SetAngles(ang + Angle(0,90,0))
@@ -254,12 +291,13 @@ nzPerks:NewPerk("pap", {
 						local pos, ang = wep:GetPos(), wep:GetAngles()
 						wep:Remove()
 						wep = ents.Create("pap_weapon_fly") -- Recreate a new entity with the replacement class instead
+						machine.papfly = wep
 						wep:SetPos(pos)
 						wep:SetAngles(ang)
 						wep.WepClass = weapon.NZPaPReplacement
 						wep:Spawn()
 						wep.TriggerPos = startpos
-						
+
 						local replacewep = weapons.Get(weapon.NZPaPReplacement)
 						local model = (replacewep and replacewep.WM or replacewep.WorldModel) or "models/weapons/w_rif_ak47.mdl"
 						if !util.IsValidModel(model) then model = "models/weapons/w_rif_ak47.mdl" end
@@ -268,9 +306,9 @@ nzPerks:NewPerk("pap", {
 						wep.Owner = ply
 						wep:SetMoveType( MOVETYPE_FLY )
 					end
-					
+
 					--print(wep, wep.WepClass, wep:GetModel())
-				
+
 					machine:EmitSound("nz/machines/pap_ready.wav")
 					wep:SetCollisionBounds(Vector(0,0,0), Vector(0,0,0))
 					wep:SetMoveType(MOVETYPE_FLY)
@@ -315,7 +353,7 @@ nzPerks:NewPerk("pap", {
 })
 
 nzPerks:NewPerk("dtap2", {
-	name = "Double Tap II",
+	name = "Double Tap 3.0",
 	off_model = "models/alig96/perks/doubletap2/doubletap2_off.mdl",
 	on_model = "models/alig96/perks/doubletap2/doubletap2.mdl",
 	price = 2000,
@@ -323,31 +361,41 @@ nzPerks:NewPerk("dtap2", {
 	icon = Material("perk_icons/dtap2.png", "smooth unlitgeneric"),
 	color = Color(255, 255, 100),
 	func = function(self, ply, machine)
-		local tbl = {}
-		for k,v in pairs(ply:GetWeapons()) do
-			if v:IsFAS2() then
-				table.insert(tbl, v)
-			end
-		end
-		if tbl[1] != nil then
-			for k,v in pairs(tbl) do
-				v:ApplyNZModifier("dtap")
-			end
-		end
+		ply:ChatPrint("[Double Tap] Firerate cannot increase, but you still deal 2X bullet damage.")
+
+		-- for k,v in pairs(ply:GetWeapons()) do
+		-- 	v:ApplyNZModifier("dtap")
+		-- end
+
+		-- local tbl = {}
+		-- for k,v in pairs(ply:GetWeapons()) do
+		-- 	if v:IsFAS2() then
+		-- 		table.insert(tbl, v)
+		-- 	end
+		-- end
+		-- if tbl[1] != nil then
+		-- 	for k,v in pairs(tbl) do
+		-- 		v:ApplyNZModifier("dtap")
+		-- 	end
+		-- end
 	end,
 	lostfunc = function(self, ply)
 		if !ply:HasPerk("dtap") then
-			local tbl = {}
 			for k,v in pairs(ply:GetWeapons()) do
-				if v:IsFAS2() then
-					table.insert(tbl, v)
-				end
+				v:RevertNZModifier("dtap")
 			end
-			if tbl[1] != nil then
-				for k,v in pairs(tbl) do
-					v:RevertNZModifier("dtap")
-				end
-			end
+
+			-- local tbl = {}
+			-- for k,v in pairs(ply:GetWeapons()) do
+			-- 	if v:IsFAS2() then
+			-- 		table.insert(tbl, v)
+			-- 	end
+			-- end
+			-- if tbl[1] != nil then
+			-- 	for k,v in pairs(tbl) do
+			-- 		v:RevertNZModifier("dtap")
+			-- 	end
+			-- end
 		end
 	end,
 })
@@ -361,16 +409,36 @@ nzPerks:NewPerk("staminup", {
 	icon = Material("perk_icons/staminup.png", "smooth unlitgeneric"),
 	color = Color(200, 255, 100),
 	func = function(self, ply, machine)
-		ply:SetRunSpeed(350)
-		ply:SetMaxRunSpeed( 350 )
-		ply:SetStamina( 200 )
-		ply:SetMaxStamina( 200 )
+		local new_walk_speed = ply:GetWalkSpeed("staminup")
+		local new_run_speed = ply:GetRunSpeed("staminup")
+
+		if new_walk_speed then
+			ply:SetWalkSpeed(new_walk_speed)
+		end
+
+		if new_run_speed then
+			ply:SetRunSpeed(new_run_speed)
+			ply:SetMaxRunSpeed(new_run_speed)
+		end
+
+		ply:SetStamina(225)
+		ply:SetMaxStamina(300)
 	end,
 	lostfunc = function(self, ply)
-		ply:SetRunSpeed(300)
-		ply:SetMaxRunSpeed( 300 )
-		ply:SetStamina( 100 )
-		ply:SetMaxStamina( 100 )
+		local new_walk_speed = ply:GetWalkSpeed("default")
+		local new_run_speed = ply:GetRunSpeed("default")
+
+		if new_walk_speed then
+			ply:SetWalkSpeed(new_walk_speed)
+		end
+
+		if new_run_speed then
+			ply:SetRunSpeed(new_run_speed)
+			ply:SetMaxRunSpeed(new_run_speed)
+		end
+
+		ply:SetStamina(100)
+		ply:SetMaxStamina(100)
 	end,
 })
 
@@ -389,7 +457,7 @@ nzPerks:NewPerk("phd", {
 })
 
 nzPerks:NewPerk("deadshot", {
-	name = "Deadshot Daiquiri",
+	name = "Deadshot Daiquiri 2.0",
 	off_model = "models/alig96/perks/deadshot/deadshot_off.mdl",
 	on_model = "models/alig96/perks/deadshot/deadshot.mdl",
 	price = 2000,
@@ -397,6 +465,7 @@ nzPerks:NewPerk("deadshot", {
 	icon = Material("perk_icons/deadshot.png", "smooth unlitgeneric"),
 	color = Color(150, 200, 150),
 	func = function(self, ply, machine)
+		ply:ChatPrint("[Deadshot 2.0] Headshot chances: 40% snipers, 20% everything else.") -- , 25% (projectiles)
 	end,
 	lostfunc = function(self, ply)
 	end,
@@ -428,7 +497,7 @@ nzPerks:NewPerk("tombstone", {
 	price = 2000,
 	material = "models/perk_bottle/c_perk_bottle_tombstone",
 	icon = Material("perk_icons/tombstone.png", "smooth unlitgeneric"),
-	color = Color(100, 100, 100),
+	color = Color(30, 200, 30),
 	func = function(self, ply, machine)
 	end,
 	lostfunc = function(self, ply)

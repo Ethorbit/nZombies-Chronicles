@@ -1,5 +1,16 @@
 if SERVER then
+	util.AddNetworkString("nzUpdateMyWeapons")
 	util.AddNetworkString("nzSendSpecialWeapon")
+
+	-- Update their special weapons, auto called when their 
+	-- special weapon returns as nil and they can't switch to it
+	net.Receive("nzUpdateMyWeapons", function(len, ply) 
+		if (!isnumber(ply.LastUpdatedWeapons) or CurTime() - ply.LastUpdatedWeapons > 4) then -- Some spam protection
+			print(ply:Nick() .. " requested a Special Weapons update.")
+			ply:UpdateSpecialWeapons()
+			ply.LastUpdatedWeapons = CurTime()
+		end
+	end)
 
 	function nzSpecialWeapons:SendSpecialWeaponAdded(ply, wep, id)
 		timer.Simple(0.5, function()

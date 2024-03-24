@@ -4,6 +4,21 @@
 	(gamemode/tools/sh_tools.lua)
 ]]
 
+properties.Add("nz_spawn_radius", {
+	MenuLabel = "Preview Radius",
+	Order = 2000,
+	Filter = function(self, ent, ply)
+		if !nzRound:InState( ROUND_CREATE ) then return false end
+		if ( !ply:IsAdmin() ) then return false end
+		if ent:GetClass() != "edit_spawn_radius" then return false end
+
+		return true
+	end,
+	Action = function(self, ent)
+		ent:SetNextPreviewStop(CurTime() + 10)
+	end
+})
+
 properties.Add( "nz_remove", {
 	MenuLabel = "Remove",
 	Order = 1000,
@@ -73,7 +88,7 @@ properties.Add( "nz_editentity", {
 	Action = function( self, ent )
 
 		local window = g_ContextMenu:Add( "DFrame" )
-		window:SetSize( 320, 400 )
+		window:SetSize( 500, 500 )
 		window:SetTitle( tostring( ent ) )
 		window:Center()
 		window:SetSizable( true )
@@ -117,27 +132,41 @@ properties.Add( "nz_lock", {
 		frame:ShowCloseButton( true )
 		frame:MakePopup()
 		frame:Center()
-		
+
 		local door = ent:GetDoorData()
 		if !door then door = {} end
-		
+
 		door.flag = door.flag or 0
 		door.link = door.link or 1
 		door.price = door.price or 1000
 		door.elec = door.elec or 0
 		door.buyable = door.buyable or 1
 		door.rebuyable = door.rebuyable or 0
-		
-		
-		
+
+		if ent:GetClass() == "wall_block" or ent.Base == "wall_block" then
+			door.modelvisible = door.modelvisible or 0
+		else
+			door.modelvisible = door.modelvisible or 1
+		end
+
+		if door.link == "disabled" then
+			door.flag = 0
+		else
+			door.flag = 1
+		end
+
+		-- if door.link == nil or door.link != nil and #door.link <= 0 then
+		-- 	door.flag = 0
+		-- end
+
 		local panel = nzTools.ToolData["door"].interface(frame, door, true)
 		panel:SetPos(10, 40)
-		
+
 		local data2 = panel.CompileData()
 		panel.UpdateData = function(data)
 			data2 = data
 		end
-		
+
 		local submit = vgui.Create("DButton", frame)
 		submit:SetText("Submit")
 		submit:SetPos(50, 245)
@@ -149,12 +178,12 @@ properties.Add( "nz_lock", {
 			self:MsgEnd()
 		end
 	end,
-	
+
 	Receive = function( self, length, ply )
 		local ent = net.ReadEntity()
 		local data = net.ReadTable()
 		if ( !self:Filter( ent, ply ) ) then return false end
-		
+
 		nzTools.ToolData["door"].PrimaryAttack(nil, ply, {Entity = ent}, data)
 	end
 } )
@@ -198,7 +227,7 @@ properties.Add( "nz_unlock", {
 	end
 } )
 
-properties.Add( "nz_editzspawn", {
+properties.Add( "nz_editplayerspecialpawn", {
 	MenuLabel = "Edit Spawnpoint...",
 	Order = 9003,
 	PrependSpacer = true,
@@ -207,7 +236,7 @@ properties.Add( "nz_editzspawn", {
 	Filter = function( self, ent, ply )
 
 		if ( !IsValid( ent ) or !IsValid(ply) ) then return false end
-		if ( ent:GetClass() != "nz_spawn_zombie_normal" and ent:GetClass() != "nz_spawn_zombie_special" ) then return false end
+		if ( ent:GetClass() != "nz_spawn_player_special" and ent:GetClass() != "nz_spawn_player_special" ) then return false end
 		if !nzRound:InState( ROUND_CREATE ) then return false end
 		if ( !ply:IsInCreative() ) then return false end
 
@@ -225,26 +254,26 @@ properties.Add( "nz_editzspawn", {
 		frame:ShowCloseButton( true )
 		frame:MakePopup()
 		frame:Center()
-		
-		local ztype = ent:GetClass() == "nz_spawn_zombie_normal" and "zspawn" or "zspecialspawn"
-		
+
+		local ztype = "playerspecialspawn"
+
 		local spawndata = {}
-		if ent:GetLink() then
+		if ent:GetLink() and #ent:GetLink() > 0 then
 			spawndata.flag = 1
 			spawndata.link = ent:GetLink()
 		else
 			spawndata.flag = 0
-			spawndata.link = ""
+			spawndata.link = "1"
 		end
-		
+
 		local panel = nzTools.ToolData[ztype].interface(frame, spawndata, true)
 		panel:SetPos(10, 40)
-		
+
 		local data2 = panel.CompileData()
 		panel.UpdateData = function(data)
 			data2 = data
 		end
-		
+
 		local submit = vgui.Create("DButton", frame)
 		submit:SetText("Submit")
 		submit:SetPos(50, 245)
@@ -261,10 +290,96 @@ properties.Add( "nz_editzspawn", {
 		local ent = net.ReadEntity()
 		local data = net.ReadTable()
 		if ( !self:Filter( ent, player ) ) then return false end
-		
-		local ztype = ent:GetClass() == "nz_spawn_zombie_normal" and "zspawn" or "zspecialspawn"
+
+		local ztype = "playerspecialspawn"
 
 		nzTools.ToolData[ztype].PrimaryAttack(nil, ply, {Entity = ent}, data)
+	end
+} )
+
+properties.Add( "nz_editzspawn", {
+	MenuLabel = "Edit Spawnpoint...",
+	Order = 9003,
+	PrependSpacer = true,
+	MenuIcon = "icon16/link_edit.png",
+
+	Filter = function( self, ent, ply )
+
+		if ( !IsValid( ent ) or !IsValid(ply) ) then return false end
+		if !ent.NZSpawner then return false end --if ( ent:GetClass() != "nz_spawn_zombie_normal" and ent:GetClass() != "nz_spawn_zombie_special" ) then return false end
+		if !nzRound:InState( ROUND_CREATE ) then return false end
+		if ( !ply:IsInCreative() ) then return false end
+
+		return true
+
+	end,
+
+	Action = function( self, ent )
+		local frame = vgui.Create("DFrame")
+		frame:SetPos( 100, 100 )
+		frame:SetSize( 300, 280 )
+		frame:SetTitle( "Edit Spawnpoint..." )
+		frame:SetVisible( true )
+		frame:SetDraggable( true )
+		frame:ShowCloseButton( true )
+		frame:MakePopup()
+		frame:Center()
+
+		local spawndata = {}
+		spawndata.spawnertype = ent:GetClass()
+
+		if ent:GetLink() and #ent:GetLink() > 0 then
+			spawndata.flag = 1
+			spawndata.link = ent:GetLink()
+			ent.flag = 1
+		else
+			spawndata.flag = 0
+			spawndata.link = "1"
+			ent.flag = 0
+		end
+
+		if ent:GetLink() == "disabled" then
+			spawndata.flag = 0
+			spawndata.link = "1"
+			ent.flag = 0
+		end
+
+		-- if ent:GetSpawnNearPlayers() != nil then
+		-- 	spawndata.spawnnearplayers = ent:GetSpawnNearPlayers()
+		-- else
+		-- 	spawndata.spawnnearplayers = false
+		-- end
+
+		spawndata.spawnnearplayers = ent:GetSpawnNearPlayers()
+
+		local panel = nzTools.ToolData["zspawner"].interface(frame, spawndata, true, true)
+		panel:SetPos(10, 40)
+
+		local data2 = panel.CompileData()
+		panel.UpdateData = function(data)
+			data2 = data
+		end
+
+		local submit = vgui.Create("DButton", frame)
+		submit:SetText("Submit")
+		submit:SetPos(50, 245)
+		submit:SetSize(200, 25)
+		submit.DoClick = function(self2)
+			--PrintTable(data2)
+			self:MsgStart()
+				net.WriteEntity( ent )
+				net.WriteTable( data2 )
+			self:MsgEnd()
+		end
+	end,
+
+	Receive = function( self, length, player )
+		local ent = net.ReadEntity()
+		local data = net.ReadTable()
+		if ( !self:Filter( ent, player ) ) then return false end
+
+		--PrintTable(data)
+		nzTools.ToolData["zspawner"].PrimaryAttack(nil, ply, {Entity = ent}, data)
 	end
 } )
 

@@ -1,4 +1,5 @@
-local playerColors = {
+--if (game.SinglePlayer()) then -- InitPostEntity seems to fail for Singleplayer? Weird..
+playerColors = {
 	Color(239,154,154),
 	Color(244,143,177),
 	Color(159,168,218),
@@ -12,10 +13,9 @@ local playerColors = {
 	Color(161,136,127),
 	Color(224,224,224),
 	Color(144,164,174),
-	nil
 }
 
-local blooddecals = {
+local blooddecalsFallback = {
 	Material("bloodline_score1.png", "unlitgeneric smooth"),
 	Material("bloodline_score2.png", "unlitgeneric smooth"),
 	Material("bloodline_score3.png", "unlitgeneric smooth"),
@@ -23,32 +23,25 @@ local blooddecals = {
 	nil
 }
 
---shuffle the colors on map start
-local rand = math.random
-local n = #playerColors
-
-while n > 2 do
-
-	local k = rand(n) -- 1 <= k <= n
-
-	playerColors[n], playerColors[k] = playerColors[k], playerColors[n]
-	n = n - 1
-end
-
-n = #blooddecals
-
-while n > 2 do
-
-	local k = rand(n) -- 1 <= k <= n
-
-	blooddecals[n], blooddecals[k] = blooddecals[k], blooddecals[n]
-	n = n - 1
-end
-
 function player.GetColorByIndex(index)
-	return playerColors[((index - 1) % #playerColors) + 1]
+	local color = playerColors[((index) % #playerColors)]
+	if color == nil then color = Color(math.random(0, 255), math.random(0, 255), math.random(0, 255), 255) end
+	return color
 end
 
 function player.GetBloodByIndex(index)
-	return blooddecals[((index - 1) % #blooddecals) + 1]
+	return NZCustomPointsHUD != nil and NZCustomPointsHUD[((index) % #NZCustomPointsHUD) + 1] or blooddecalsFallback[((index) % #blooddecalsFallback) + 1]
 end
+--return end
+
+-- hook.Add("InitPostEntity", "ColorAndBloodFunc", function()
+	
+-- end)
+
+
+net.Receive("NZPlayerColors", function() -- Synchronise player colors from the server so that everyone sees the same colors
+	local newTbl = net.ReadTable()
+	if !newTbl || table.IsEmpty(newTbl) then return end
+	playerColors = newTbl
+end)
+

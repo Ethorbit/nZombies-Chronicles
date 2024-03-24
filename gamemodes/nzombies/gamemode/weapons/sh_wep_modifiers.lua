@@ -5,9 +5,9 @@ local WeaponModificationFunctionsDefaults = {
 	speed = function(wep)
 		local oldreload = wep.Reload
 		if !oldreload then return end
-		
+
 		--print("Weapon reload modified")
-		
+
 		wep.Reload = function( self, ... )
 			if self.ReloadFinish and self.ReloadFinish > CurTime() then return end
 			local ply = self.Owner
@@ -18,7 +18,7 @@ local WeaponModificationFunctionsDefaults = {
 				give = ply:GetAmmoCount(self:GetPrimaryAmmoType())
 			end
 			if give <= 0 then return end
-			
+
 			self:SendWeaponAnim(ACT_VM_RELOAD)
 			oldreload(self, ...)
 			local rtime = self:SequenceDuration(self:SelectWeightedSequence(ACT_VM_RELOAD))/2
@@ -30,7 +30,7 @@ local WeaponModificationFunctionsDefaults = {
 			self:SetNextPrimaryFire(nexttime)
 			self:SetNextSecondaryFire(nexttime)
 			self.ReloadFinish = nexttime
-			
+
 			timer.Simple(rtime, function()
 				if IsValid(self) and ply:GetActiveWeapon() == self then
 					self:SetPlaybackRate(1)
@@ -53,7 +53,7 @@ local WeaponModificationFunctionsDefaults = {
 				wep:SetNextPrimaryFire(CurTime() + delay)
 			end
 		end
-		
+
 		local oldsfire = wep.SecondaryAttack
 		if oldsfire then
 			wep.SecondaryAttack = function(...)
@@ -64,14 +64,14 @@ local WeaponModificationFunctionsDefaults = {
 		end
 	end,
 	pap = function(wep)
-		if wep.Primary and wep.Primary.ClipSize > 0 then
-			local newammo = wep.Primary.ClipSize + (wep.Primary.ClipSize*0.5)
-			newammo = math.Round(newammo/5)*5
-			if newammo <= 0 then newammo = 2 end
-			wep.Primary.ClipSize = newammo
-			if SERVER then wep:SetClip1(newammo) end
-		end
-		
+		-- if wep.Primary and wep.Primary.ClipSize > 0 then
+		-- 	local newammo = wep.Primary.ClipSize + (wep.Primary.ClipSize*0.5)
+		-- 	newammo = math.Round(newammo/5)*5
+		-- 	if newammo <= 0 then newammo = 2 end
+		-- 	wep.Primary.ClipSize = newammo
+		-- 	if SERVER then wep:SetClip1(newammo) end
+		-- end
+
 		if CLIENT then
 			local bannedmatnames = {"hand", "arm", "accessor", "scope", "sight"}
 			local function IsGoodMaterial(str)
@@ -82,7 +82,7 @@ local WeaponModificationFunctionsDefaults = {
 				end
 				return true
 			end
-			
+
 			if !wep.PaPMats2 then -- Only if the weapon doesn't already have
 				if wep.PaPMats then wep.PaPMats2 = wep.PaPMats else
 					wep.PaPMats2 = {} -- Generate PaP mats for this weapon
@@ -128,7 +128,7 @@ local WeaponModificationRevertDefaults = {
 
 function nzWeps:AddWeaponModification(id, event, condition, apply, revert)
 	if !WeaponModificationFunctions[event] then WeaponModificationFunctions[event] = {} end
-	
+
 	WeaponModificationFunctions[event][id] = {
 		condition = condition, -- Condition is checked on both revert and apply
 		apply = apply, -- Applies changes, all changes are restored when reverted automatically
@@ -147,11 +147,13 @@ if !wepmeta then return end
 
 local function RecursiveDifferenceCheck(tbl1, tbl2)
 	local diffs = {}
-	
+
+	if tbl1 == nil || tbl2 == nil then return diffs end
 	for k,v in pairs(tbl1) do
 		if v != tbl2[k] then
 			if type(v) == "table" then
 				local t = RecursiveDifferenceCheck(v, tbl2[k])
+				if t == nil then return end
 				if table.Count(t) > 0 then
 					diffs[k] = t
 				end
@@ -160,7 +162,7 @@ local function RecursiveDifferenceCheck(tbl1, tbl2)
 			end
 		end
 	end
-	
+
 	return diffs
 end
 
@@ -171,23 +173,64 @@ function wepmeta:ApplyDefaultNZModifier(modifier)
 end
 
 function wepmeta:ApplyNZModifier(modifier, blocknetwork)
+	if (modifier == "pap" or modifier == "repap") then
+		self:ApplyDefaultNZModifier(modifier)
+
+		if SERVER then
+			nzWeps:SendSync(self.Owner, self, modifier, false) -- Sync to let the client do the same
+		end
+	end
+
 	if self:HasNZModifier(modifier) then return end
 
 	if WeaponModificationFunctions and WeaponModificationFunctions[modifier] then
-	
 		local oldversion = table.Copy(self:GetTable()) -- We'll compare to allow for auto-reversion of any changes
 		local modded = false
-		
+
 		if self.NZModifierAdd and !self:NZModifierAdd(modifier) then
 			modded = true
 		end
-		
+
 		if !modded then
-			if (modifier == "pap" and self.OnPaP and self:OnPaP()) or (modifier == "repap" and self.OnRePaP and self.OnRePaP()) then
+			 -- Structured better by Ethorbit instead of everything being just 1 big if statement
+			if (modifier == "pap") then -- and self.OnPaP and self:OnPaP()) or (modifier == "repap" and self.OnRePaP and self.OnRePaP()) then
+				if self.OnPaP then
+					self:OnPaP()
+				end
+
 				modded = true
+
+				-- timer.Simple(0, function()
+				-- 	if IsValid(self) and self.IsTFAWeapon then
+				-- 		table.Empty(self.StatCache)
+				-- 		table.Empty(self.StatCache2)
+				-- 		table.Empty(self.StatStringCache)
+				-- 		self.LastClearStatCache = CurTime()
+				-- 		self:ClearStatCache()
+				-- 		self:ClearStatCacheL()
+				-- 	end
+				-- end)
+
+				-- if self.IsTFAWeapon then -- TFA Base being retarded and intentionally forgetting realtime property changes (Also they have a shit ton of awful spaghetti code)
+				-- 	self:UpdateTFACache(self:GetTable()) -- Defined in weapons/sh_weps.lua
+				-- end
 			end
+
+			if (modifier == "repap") then
+				if self.OnRePaP then
+					 self.OnRePaP()
+				 end
+			end
+
+			-- if self.OnPaP and self:IsTFAWeapon() then -- Added by Ethorbit to fix TFA's stat cache bullshit where the properties in OnPaP weren't applying
+			-- 	-- The weapon's properties are final,
+			-- 	-- add every single one to the stat caches:
+			-- 	print("So we do it here.")
+			--
+			--
+			-- end
 		end
-		
+
 		if !modded then
 			for k,v in pairs(WeaponModificationFunctions[modifier]) do
 				if v.condition(self) then -- Apply all modifications that pass the condition
@@ -198,17 +241,19 @@ function wepmeta:ApplyNZModifier(modifier, blocknetwork)
 				end
 			end
 		end
-		
+
 		if !modded then -- If all modifiers passed on, default comes last
 			self:ApplyDefaultNZModifier(modifier)
 		end
-		
+
 		if SERVER and !blocknetwork then
 			nzWeps:SendSync(self.Owner, self, modifier, false) -- Sync to let the client do the same
 		end
-		
+
 		if !self.NZModifiers then self.NZModifiers = {} end
+
 		if modifier != "repap" and modifier != "equip" then self.NZModifiers[modifier] = RecursiveDifferenceCheck(oldversion, self:GetTable()) end -- Store all differences so we can restore them!
+		--if modifier != "repap" and modifier != "equip" then self.NZModifiers[modifier] = true end
 	else
 		print("Tried to apply invalid modifier "..modifier.." to weapon "..tostring(self))
 	end
@@ -216,25 +261,26 @@ end
 
 function wepmeta:RevertNZModifier(modifier, blocknetwork)
 	if WeaponModificationFunctions and WeaponModificationFunctions[modifier] then
+		if (!istable(self.NZModifiers) or istable(self.NZModifiers) and table.IsEmpty(self.NZModifiers)) then return end
 		local olds = self.NZModifiers[modifier]
-		
+
 		if olds then
 			for k,v in pairs(olds) do -- Restore all old data!
 				self[k] = v
 			end
 		end
-		
+
 		for k,v in pairs(WeaponModificationFunctions[modifier]) do
 			if v.revert and v.condition(self) then
 				v.revert(self) -- Call revert functions if they were added
 			end
 		end
 		if WeaponModificationRevertDefaults[modifier] then WeaponModificationRevertDefaults[modifier](self) end
-		
+
 		if SERVER and !blocknetwork then
 			nzWeps:SendSync(self.Owner, self, modifier, true) -- Sync to let the client do the same
 		end
-		
+
 		if !self.NZModifiers then self.NZModifiers = {} end
 		self.NZModifiers[modifier] = nil
 	else
@@ -275,7 +321,7 @@ end, function(wep)
 	data["InsertTime_Nomen"] = 2
 	data["InsertEmpty"] = 2
 	data["InsertEmpty_Nomen"] = 2
-	
+
 	for k,v in pairs(data) do
 		if wep[k] != nil then
 			local val = wep[k] / v
@@ -285,7 +331,7 @@ end, function(wep)
 			wep[k] = val
 		end
 	end
-	
+
 	if wep.ReloadTimes then
 		--wep.old_ReloadTimes = table.Copy(wep.ReloadTimes)
 		for k,v in pairs(wep.ReloadTimes) do
@@ -312,7 +358,7 @@ end, function(wep)
 	data["CockTime_Nomen"] = 1.5
 	data["CockTime_Bipod"] = 1.5
 	data["CockTime_Bipod_Nomen"] = 1.5
-	
+
 	for k,v in pairs(data) do
 		if wep[k] != nil then
 			local val = wep[k] / v
@@ -328,46 +374,46 @@ local function AttachFAS2Attachment(ply, wep, group, att)
 	if not (IsValid(ply) and ply:Alive()) then
 		return
 	end
-	
+
 	if not IsValid(wep) or not wep.IsFAS2Weapon then
 		return
 	end
-	
+
 	ply:FAS2_PickUpAttachment(att, false) -- Silently add the attachment
-	
+
 	if not group or not att or not wep.Attachments or wep.NoAttachmentMenu or not table.HasValue(ply.FAS2Attachments, att) then
 		return
 	end
-	
+
 	t = wep.Attachments[group]
-	
+
 	if t then
 		found = false
-		
+
 		for k, v in pairs(t.atts) do
 			if v == att then
 				found = true
 			end
 		end
-		
+
 		if t.lastdeattfunc then
 			t.lastdeattfunc(ply, wep)
 			t.lastdeattfunc = nil
 		end
-		
+
 		if found then
 			t.last = att
-			
+
 			t2 = FAS2_Attachments[att]
-			
+
 			if t2.attfunc then
 				t2.attfunc(ply, wep)
 			end
-				
+
 			if t2.deattfunc then
 				t.lastdeattfunc = t2.deattfunc
 			end
-			
+
 			umsg.Start("FAS2_ATTACHPAP", ply)
 				umsg.Short(group)
 				umsg.String(att)
@@ -437,7 +483,7 @@ nzWeps:AddWeaponModification("pap_cw2_attachments", "pap", function(wep) return 
 		wep.Primary.ClipSize_ORIG_REAL = newammo
 		if SERVER then wep:SetClip1(newammo) end
 	end
-	
+
 	if SERVER then
 		atts(wep)
 	end
@@ -445,22 +491,25 @@ nzWeps:AddWeaponModification("pap_cw2_attachments", "pap", function(wep) return 
 end)
 nzWeps:AddWeaponModification("pap_cw2_attachments", "repap", cond, atts) -- Add the same to both PaP and Re-PaP
 
-nzWeps:AddWeaponModification("speed_tfa", "speed", function(wep)
-	return wep:IsTFA()
-end, function(wep)
-	wep.ReloadOld = wep.ReloadOld or wep.Reload
+nzWeps:AddWeaponModification("speed_tfa", "speed", function(wep) return wep:IsTFA() end, function(wep)
+	wep.ReloadOld = isfunction(wep.ReloadOld) and wep.ReloadOld or wep.Reload
 	wep.Reload = function(self, ...)
 		local ct = CurTime()
-		wep.ReloadOld(self, ...)
+
+		if (isfunction(wep.ReloadOld)) then
+			wep.ReloadOld(self, ...)
+		end
+
 		local diff = self:GetNextPrimaryFire() - ct
 		diff = diff/2 + ct
-		
-		print(diff)
-		
+
+		--print(diff)
+
 		if self.SetReloadingEnd then self:SetReloadingEnd(diff) end -- This function handles the ammo refill
+
 		self.ReloadingTime = diff
-		self:SetNextPrimaryFire(diff)
-		self:SetNextSecondaryFire(diff)
+		--self:SetNextPrimaryFire(diff)
+		--self:SetNextSecondaryFire(diff)
 		self:SetNextIdleAnim(diff)
 		self:SetPlaybackRate(2)
 		self.Owner:GetViewModel():SetPlaybackRate(2)
@@ -470,156 +519,156 @@ end)
 nzWeps:AddWeaponModification("dtap_tfa", "dtap", function(wep)
 	return wep:IsTFA()
 end, function(wep)
-	wep.PrimaryAttackOld = wep.PrimaryAttackOld or wep.PrimaryAttack
-	wep.PrimaryAttack = function(self, ...)
-		local npfold = wep:GetNextPrimaryFire()
-		wep.PrimaryAttackOld(wep, ...)
-		if wep:GetNextPrimaryFire() <= npfold then return end
-		
-		local dtap1,dtap2 = wep.Owner:HasPerk("dtap"), wep.Owner:HasPerk("dtap2")
-		if dtap1 or dtap2 then
-			local delay = wep:GetNextPrimaryFire() - CurTime()
-			if dtap2 then
-				delay = delay * 0.8
-			end
-			if dtap1 then
-				delay = delay * 0.8
-			end
-			wep:SetNextPrimaryFire(CurTime() + delay)
-			if ( wep:GetStatus() == TFA.GetStatus("shooting") or wep:GetStatus()  == TFA.GetStatus("bashing") ) then
-				delay = wep:GetStatusEnd() - CurTime()
-				if dtap2 then
-					delay = delay * 0.8
-				end
-				if dtap1 then
-					delay = delay * 0.8
-				end
-				wep:SetStatusEnd( CurTime() + delay )
-			end
-		end
-	end
-	wep.SecondaryAttackOld = wep.SecondaryAttackOld or wep.SecondaryAttack
-	wep.SecondaryAttack = function(self, ...)
-		local npfold = wep:GetNextPrimaryFire()
-		wep.SecondaryAttackOld(wep, ...)
-		if wep:GetNextPrimaryFire() <= npfold then return end
+	--wep.PrimaryAttackOld = wep.PrimaryAttackOld or wep.PrimaryAttack
+	-- wep.PrimaryAttack = function(self, ...)
+	-- 	local npfold = wep:GetNextPrimaryFire()
+	-- 	wep.PrimaryAttackOld(wep, ...)
+	-- 	if wep:GetNextPrimaryFire() <= npfold then return end
 
-		local dtap1,dtap2 = wep.Owner:HasPerk("dtap"), wep.Owner:HasPerk("dtap2")
-		if dtap1 or dtap2 then
-			local delay = wep:GetNextPrimaryFire() - CurTime()
-			if dtap2 then
-				delay = delay * 0.8
-			end
-			if dtap1 then
-				delay = delay * 0.8
-			end
-			wep:SetNextPrimaryFire(CurTime() + delay)
-			if ( wep:GetStatus() == TFA.GetStatus("shooting") or wep:GetStatus()  == TFA.GetStatus("bashing") ) then
-				delay = wep:GetStatusEnd() - CurTime()
-				if dtap2 then
-					delay = delay * 0.8
-				end
-				if dtap1 then
-					delay = delay * 0.8
-				end
-				wep:SetStatusEnd( CurTime() + delay )
-			end
-		end
-	end
+	-- 	local dtap1,dtap2 = wep.Owner:HasPerk("dtap"), wep.Owner:HasPerk("dtap2")
+	-- 	if dtap1 or dtap2 then
+	-- 		local delay = wep:GetNextPrimaryFire() - CurTime()
+	-- 		if dtap2 then
+	-- 			delay = delay * 0.8
+	-- 		end
+	-- 		if dtap1 then
+	-- 			delay = delay * 0.8
+	-- 		end
+	-- 		wep:SetNextPrimaryFire(CurTime() + delay)
+	-- 		if ( wep:GetStatus() == TFA.GetStatus("shooting") or wep:GetStatus()  == TFA.GetStatus("bashing") ) then
+	-- 			delay = wep:GetStatusEnd() - CurTime()
+	-- 			if dtap2 then
+	-- 				delay = delay * 0.8
+	-- 			end
+	-- 			if dtap1 then
+	-- 				delay = delay * 0.8
+	-- 			end
+	-- 			wep:SetStatusEnd( CurTime() + delay )
+	-- 		end
+	-- 	end
+	-- end
+	--wep.SecondaryAttackOld = wep.SecondaryAttackOld or wep.SecondaryAttack
+	-- wep.SecondaryAttack = function(self, ...)
+	-- 	local npfold = wep:GetNextPrimaryFire()
+	-- 	wep.SecondaryAttackOld(wep, ...)
+	-- 	if wep:GetNextPrimaryFire() <= npfold then return end
+
+	-- 	local dtap1,dtap2 = wep.Owner:HasPerk("dtap"), wep.Owner:HasPerk("dtap2")
+	-- 	if dtap1 or dtap2 then
+	-- 		local delay = wep:GetNextPrimaryFire() - CurTime()
+	-- 		if dtap2 then
+	-- 			delay = delay * 0.8
+	-- 		end
+	-- 		if dtap1 then
+	-- 			delay = delay * 0.8
+	-- 		end
+	-- 		wep:SetNextPrimaryFire(CurTime() + delay)
+	-- 		if ( wep:GetStatus() == TFA.GetStatus("shooting") or wep:GetStatus()  == TFA.GetStatus("bashing") ) then
+	-- 			delay = wep:GetStatusEnd() - CurTime()
+	-- 			if dtap2 then
+	-- 				delay = delay * 0.8
+	-- 			end
+	-- 			if dtap1 then
+	-- 				delay = delay * 0.8
+	-- 			end
+	-- 			wep:SetStatusEnd( CurTime() + delay )
+	-- 		end
+	-- 	end
+	-- end
 end)
 
 nzWeps:AddWeaponModification("tfa_attachmentmod", "equip", function(wep)
-	return wep:IsTFA()
-end, function(wep)
-	if wep.Attachments then
-		wep.CanAttach = function()
-			return false
-		end
-		wep.SetTFAAttachment = function(self, cat, id, nw)
-			if ( not self.Attachments[cat] ) then return false end
-			if id ~= self.Attachments[cat].sel then
-				local att_old = TFA.Attachments[ self.Attachments[cat].atts[ self.Attachments[cat].sel ] or -1 ]
-				if att_old then
-					att_old:Detach( self )
-				end
+-- 	return wep:IsTFA()
+-- end, function(wep)
+-- 	if wep.Attachments then
+-- 		wep.CanAttach = function()
+-- 			return false
+-- 		end
+-- 		wep.SetTFAAttachment = function(self, cat, id, nw)
+-- 			if ( not self.Attachments[cat] ) then return false end
+-- 			if id ~= self.Attachments[cat].sel then
+-- 				local att_old = TFA.Attachments[ self.Attachments[cat].atts[ self.Attachments[cat].sel ] or -1 ]
+-- 				if att_old then
+-- 					att_old:Detach( self )
+-- 				end
 
-				local att_neue = TFA.Attachments[ self.Attachments[cat].atts[ id ] or -1 ]
-				if att_neue then
-					att_neue:Attach( self )
-				end
-			end
-			self:ClearStatCache()
-			if id > 0 then
-				self.Attachments[cat].sel = id
-			else
-				self.Attachments[cat].sel = nil
-			end
-			self:BuildAttachmentCache()
-			if nw then
-				net.Start("TFA_Attachment_Set")
-				net.WriteEntity(self)
-				net.WriteInt(cat,8)
-				net.WriteInt( id or -1 ,5)
-				if SERVER then
-					net.Broadcast()
-				elseif CLIENT then
-					net.SendToServer()
-				end
-			end
-			return true
-		end
-	end
+-- 				local att_neue = TFA.Attachments[ self.Attachments[cat].atts[ id ] or -1 ]
+-- 				if att_neue then
+-- 					att_neue:Attach( self )
+-- 				end
+-- 			end
+-- 			self:ClearStatCache()
+-- 			if id > 0 then
+-- 				self.Attachments[cat].sel = id
+-- 			else
+-- 				self.Attachments[cat].sel = nil
+-- 			end
+-- 			self:BuildAttachmentCache()
+-- 			if nw then
+-- 				net.Start("TFA_Attachment_Set")
+-- 				net.WriteEntity(self)
+-- 				net.WriteInt(cat,8)
+-- 				net.WriteInt( id or -1 ,5)
+-- 				if SERVER then
+-- 					net.Broadcast()
+-- 				elseif CLIENT then
+-- 					net.SendToServer()
+-- 				end
+-- 			end
+-- 			return true
+-- 		end
+-- 	end
 end)
 
 local cond = function(wep) return SERVER and wep:IsTFA() and GetConVar("nz_papattachments"):GetBool() end
 local atts = function(wep)
-	if wep.Attachments then
-		for k,v in pairs(wep.Attachments) do
-			if v.header and string.lower(v.header) != "magazine" and string.lower(v.header) != "mag" then -- Mag can't be edited
-				wep:SetTFAAttachment(k, math.random(table.Count(v.atts)), true)
-			end
-		end
-	end
-	return true
+	-- if wep.Attachments then
+	-- 	for k,v in pairs(wep.Attachments) do
+	-- 		if v.header and string.lower(v.header) != "magazine" and string.lower(v.header) != "mag" then -- Mag can't be edited
+	-- 			wep:SetTFAAttachment(k, math.random(table.Count(v.atts)), true)
+	-- 		end
+	-- 	end
+	-- end
+	-- return true
 end
 nzWeps:AddWeaponModification("pap_tfa_attachments", "pap", cond, atts) -- Add the same to both PaP and Re-PaP
 nzWeps:AddWeaponModification("pap_tfa_attachments", "repap", cond, atts)
 
 
-if SERVER then
-	util.AddNetworkString("nzPaPCamo")
-	hook.Add("OnViewModelChanged", "nzPaPCamoUpdate", function(vm, old, new)
-		if IsValid(vm) and IsValid(vm:GetOwner()) then
-			--print(vm:GetOwner())
-			net.Start("nzPaPCamo")
-			net.Send(vm:GetOwner())
-		end
-	end)
-end
+-- if SERVER then
+-- 	util.AddNetworkString("nzPaPCamo")
+-- 	hook.Add("OnViewModelChanged", "nzPaPCamoUpdate", function(vm, old, new)
+-- 		if IsValid(vm) and IsValid(vm:GetOwner()) then
+-- 			--print(vm:GetOwner())
+-- 			net.Start("nzPaPCamo")
+-- 			net.Send(vm:GetOwner())
+-- 		end
+-- 	end)
+-- end
 
-if CLIENT then
-	CreateClientConVar("nz_papcamo", 1, true, false, "Sets whether Pack-a-Punch applies a camo to your viewmodel")
+--if CLIENT then
+	--CreateClientConVar("nz_papcamo", 1, true, false, "Sets whether Pack-a-Punch applies a camo to your viewmodel")
 
-	local function PaPCamoUpdate(vm, old, new)
-		if !IsValid(LocalPlayer()) then return end
-		local wep = LocalPlayer():GetActiveWeapon()
-		--vm:SetSubMaterial()
-		if !IsValid(wep) then return end
-		local view = wep.CW_VM or wep.Wep or vm or LocalPlayer():GetViewModel()
-		if IsValid(view) then
-			view:SetSubMaterial()
-			if !GetConVar("nz_papcamo"):GetBool() then return end
-			if wep.PaPCamo then -- You can also use a function
-				wep:PaPCamo(view)
-			elseif wep.PaPMats2 then -- Will be generated if not defined in the weapon file
-				timer.Simple(0.01, function()
-					for k,v in pairs(wep.PaPMats2) do
-						view:SetSubMaterial(k, "models/XQM/LightLinesRed_tool.vtf")
-					end
-				end)
-			end
-		end
-	end
-	hook.Add("OnViewModelChanged", "nzPaPCamoUpdate", PaPCamoUpdate)
-	net.Receive("nzPaPCamo", function() PaPCamoUpdate() end)
-end
+	--local function PaPCamoUpdate(vm, old, new)
+		-- if !IsValid(LocalPlayer()) then return end
+		-- local wep = LocalPlayer():GetActiveWeapon()
+		-- --vm:SetSubMaterial()
+		-- if !IsValid(wep) then return end
+		-- local view = wep.CW_VM or wep.Wep or vm or LocalPlayer():GetViewModel()
+		-- if IsValid(view) then
+		-- 	view:SetSubMaterial()
+		-- 	if !GetConVar("nz_papcamo"):GetBool() then return end
+		-- 	if wep.PaPCamo then -- You can also use a function
+		-- 		wep:PaPCamo(view)
+		-- 	elseif wep.PaPMats2 then -- Will be generated if not defined in the weapon file
+		-- 		timer.Simple(0.01, function()
+		-- 			for k,v in pairs(wep.PaPMats2) do
+		-- 				view:SetSubMaterial(k, "models/XQM/LightLinesRed_tool.vtf")
+		-- 			end
+		-- 		end)
+		-- 	end
+		-- end
+	--end
+	--hook.Add("OnViewModelChanged", "nzPaPCamoUpdate", PaPCamoUpdate)
+	--net.Receive("nzPaPCamo", function() PaPCamoUpdate() end)
+--end

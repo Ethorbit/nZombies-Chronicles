@@ -8,6 +8,8 @@ ENT.Contact			= "youtube.com/Zet0r"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 --[[local perk_materials = {
 	["jugg"] = "models/perk_bottle/c_perk_bottle_jugg",
 	["speed"] = "models/perk_bottle/c_perk_bottle_speed",

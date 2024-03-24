@@ -2,6 +2,8 @@
 ENT.Type = "point"
 ENT.Base = "base_point"
 
+ENT.NZEntity = true
+
 -- An entity to be used in Hammer that can turn the electricity on or off, and will fire outputs when this happens.
 -- To use it, grab the nzombies.fgd from the gamemode and import it into Hammer.
 

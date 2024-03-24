@@ -1,7 +1,6 @@
 
 local function HandlePlayerDowned(ply, vel)
 	if !ply:GetNotDowned() then
-	
 		ply.CalcIdeal = ACT_HL2MP_SWIM_REVOLVER
 		
 		local len = vel:Length2D()
@@ -13,6 +12,14 @@ local function HandlePlayerDowned(ply, vel)
 	end
 end
 hook.Add("CalcMainActivity", "nzPlayerDownedAnims", HandlePlayerDowned)
+
+hook.Add("PrePlayerDraw", "nzPlayerDownedPos", function(ply)
+	if (ply:GetPos() == ply.FixedRevPos) then return end
+	ply.FixedRevPos = ply:GetPos() - Vector(0, 0, 25)
+	if !ply:GetNotDowned() then
+		ply:SetPos(ply.FixedRevPos)
+	end
+end)
 
 local function PlayerDownedParameters(ply, vel, seqspeed)
 	if !ply:GetNotDowned() then
@@ -31,7 +38,9 @@ local function PlayerDownedParameters(ply, vel, seqspeed)
 		ply:SetPlaybackRate( movement )
 		
 		if !ply.NZDownedAnim then
-			ply:SetHull(Vector(-16,-16,25), Vector(16,16,97))
+			ply.oldViewOffsetHere = ply:GetViewOffset()
+			ply:SetViewOffset(Vector(0, 0, 30))
+			--ply:SetHull(Vector(-16,-16,0), Vector(16,16,72))
 			ply.NZDownedAnim = true
 		end
 
@@ -39,6 +48,10 @@ local function PlayerDownedParameters(ply, vel, seqspeed)
 		--
 		return true
 	elseif ply.NZDownedAnim then
+		-- if (isvector(ply.oldViewOffsetHere)) then
+		ply:SetViewOffset(Vector(0, 0, 64))
+		-- end
+
 		--ply:SetPos(ply:GetPos() + Vector(0,0,25))
 		ply:ResetHull()
 		ply.NZDownedAnim = false

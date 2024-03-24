@@ -122,7 +122,7 @@ function MenuToolBar:Init()
 	self:AddEntry( "Press F1 to toggle this menu", "small", function() RunConsoleCommand("nz_settings") end )
 	
 	--Settings Button / Close button
-	if LocalPlayer():IsSuperAdmin() then
+	if ( LocalPlayer():GetUserGroup() == "superadmin" or LocalPlayer():GetUserGroup() == "admin" ) then
 		self.SettingsButton = vgui.Create( "DImageButton", self )
 		self.SettingsButton:SetImage( "icon_settings.png" )
 		self.SettingsButton:SetPos( ScrW() - 60, 20 )

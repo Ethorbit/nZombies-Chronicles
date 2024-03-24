@@ -149,12 +149,17 @@ function ENT:Return() -- Emptyhanded return - Grab is with player
 	self:SetCollisionBounds(Vector(0,0,0), Vector(0,0,0))
 	
 	local att = panzer:LookupAttachment("clawlight")
-	local pos = att and panzer:GetAttachment(att).Pos or panzer:GetPos()
-	self:SetLocalVelocity((pos - self:GetPos()):GetNormalized() * 1500)
+	local getatt = panzer:GetAttachment(att)
+	if (istable(getatt) and isvector(getatt.Pos)) then
+		local pos = att and getatt.Pos or panzer:GetPos()
+		self:SetLocalVelocity((pos - self:GetPos()):GetNormalized() * 1500)
+	end
 end
 
 function ENT:Reattach(removed)
-	if !removed then self:Remove() end
+	if (SERVER) then
+		if !removed then self:Remove() end
+	end
 	
 	local panzer = self:GetPanzer()
 	if !IsValid(panzer) then return end

@@ -47,3 +47,10 @@ function ENT:EnableForwardArrow()
 	self:SetBodygroup( 1, 1 )
 
 end
+
+-- Gamemode uses serverside fog now, don't override clientside fog anymore:
+function ENT:SetupWorldFog()
+end
+
+function ENT:SetupSkyFog()
+end

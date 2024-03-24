@@ -1,14 +1,45 @@
 //Main Text
+surface.CreateFont("BigHP", {
+    font = "Arial", --  Use the font-name which is shown to you by your operating system Font Viewer, not the file name
+    size = 38
+})
+
+surface.CreateFont("SmallHP", {
+    font = "Arial", --  Use the font-name which is shown to you by your operating system Font Viewer, not the file name
+    size = 30
+})
+
 surface.CreateFont( "nz.display.hud.main", {
-	font = "DK Umbilical Noose", //Avenir Next
+	font = "Agency FB", //Avenir Next
 	size = 48,
 	weight = 300,
 	antialias = true,
 } )
 
 surface.CreateFont( "nz.display.hud.small", {
+	font = "Agency FB", //Avenir Next
+	size = 40,
+	weight = 500,
+	antialias = true,
+} )
+
+surface.CreateFont( "nz.display.hud.smaller", {
 	font = "DK Umbilical Noose", //Avenir Next
-	size = 28,
+	size = 22,
+	weight = 300,
+	antialias = true,
+} )
+
+surface.CreateFont( "nz.display.hud.tiny", {
+	font = "DK Umbilical Noose", //Avenir Next
+	size = 14,
+	weight = 300,
+	antialias = true,
+} )
+
+surface.CreateFont( "nz.display.hud.small.local", {
+	font = "DK Umbilical Noose", //Avenir Next
+	size = 31,
 	weight = 300,
 	antialias = true,
 } )
@@ -28,16 +59,16 @@ surface.CreateFont( "nz.display.hud.points", {
 } )
 
 surface.CreateFont( "nz.display.hud.ammo", {
-	font = "Calibri",
-	size = 60,
-	weight = 50,
+	font = "Agency FB",
+	size = 100,
+	weight = 100,
 	antialias = true,
 } )
 
 surface.CreateFont( "nz.display.hud.ammo2", {
-	font = "Calibri",
-	size = 40,
-	weight = 50,
+	font = "Agency FB",
+	size = 80,
+	weight = 100,
 	antialias = true,
 } )
 
@@ -64,10 +95,52 @@ surface.CreateFont( "nz.display.hud.smaller", {
 
 surface.CreateFont( "nz.display.hud.rounds", {
 	font = "DK Umbilical Noose", //Avenir Next
-	size = 400,
+	size = 160,
 	weight = 30,
 	antialias = true,
 } )
+
+surface.CreateFont( "nz.display.hud.rounds.small", {
+	font = "DK Umbilical Noose", //Avenir Next
+	size = 100,
+	weight = 30,
+	antialias = true,
+} )
+
+hook.Add("InitPostEntity", "MyLastTryToFixShit", function()
+	local healthArmorVar = GetConVar("nzc_health_hud")
+	local isBigSize = false
+	local function HealthHudRoundResize()
+		if healthArmorVar then
+			if (!isBigSize and healthArmorVar:GetInt() == 4) then
+				surface.CreateFont( "nz.display.hud.rounds", {
+					font = "DK Umbilical Noose", //Avenir Next
+					size = 190,
+					weight = 30,
+					antialias = true,
+				} )
+
+				isBigSize = true
+			elseif (isBigSize) then
+				surface.CreateFont( "nz.display.hud.rounds", {
+					font = "DK Umbilical Noose", //Avenir Next
+					size = 160,
+					weight = 30,
+					antialias = true,
+				} )
+
+				isBigSize = false
+			end
+		end
+	end
+
+	cvars.RemoveChangeCallback("nzc_health_hud", "HealthRoundResizerxd")
+	cvars.AddChangeCallback("nzc_health_hud", function()
+		HealthHudRoundResize()
+	end, "HealthRoundResizerxd")
+
+	HealthHudRoundResize()
+end)
 
 -- Rotated text function, as taken from the gmod wiki
 local matscale = Vector(1,1,1)

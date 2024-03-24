@@ -1,6 +1,8 @@
 --
 
 function nzRandomBox.Spawn(exclude, first)
+	nzRandomBox.NoTeddyChance = math.random(3, 5)
+	
 	--Get all spawns
 	local all = ents.FindByClass("random_box_spawns")
 	local possible = {}
@@ -48,10 +50,18 @@ function nzRandomBox.Remove()
 end
 
 function nzRandomBox.DecideWep(ply)
+	if (!isnumber(nzRandomBox.NoTeddyChance)) then
+		nzRandomBox.NoTeddyChance = math.random(3, 5)
+	else
+		nzRandomBox.NoTeddyChance = math.Clamp(nzRandomBox.NoTeddyChance - 1, 0, 8) 
+	end
 
-	local teddychance = math.random(1, 15)
-	if teddychance <= 1 and !nzPowerUps:IsPowerupActive("firesale") and table.Count(ents.FindByClass("random_box_spawns")) > 1 then
-		return hook.Call("OnPlayerBuyBox", nil, ply, "nz_box_teddy") or "nz_box_teddy"
+	if (nzRandomBox.NoTeddyChance <= 0 and !nzPowerUps:IsPowerupActive("firesale")) then
+		local teddychance = math.random(1, 15)
+		if teddychance <= 1 and !nzPowerUps:IsPowerupActive("firesale") and table.Count(ents.FindByClass("random_box_spawns")) > 1 then
+			nzRandomBox.NoTeddyChance = nil
+			return hook.Call("OnPlayerBuyBox", nil, ply, "nz_box_teddy") or "nz_box_teddy"
+		end
 	end
 
 	local guns = {}
@@ -59,14 +69,23 @@ function nzRandomBox.DecideWep(ply)
 
 	--Add all our current guns to the black list
 	if IsValid(ply) and ply:IsPlayer() then
-		local found
+		--local found
 		for k,v in pairs( ply:GetWeapons() ) do
 			if v.ClassName then
 				blacklist[v.ClassName] = true
-				if v.ClassName == "nz_touchedlast" then found = true end
+				--if v.ClassName == "nz_touchedlast" then found = true end
+			end
+
+			-- And make sure for our upgraded weapons that we still block the unpap'd version
+			if v:HasNZModifier("pap") then
+				local initial = nzWeps:Unreplaced(v:GetClass())
+				local initialClass = initial and initial.ClassName
+				if initialClass then
+					blacklist[initialClass] = true
+				end
 			end
 		end
-		if !found and ply.nz_InSteamGroup then guns["nz_touchedlast"] = 20 end
+		--if !found and ply.nz_InSteamGroup then guns["nz_touchedlast"] = 20 end
 	end
 
 	--Add all guns with no model or wonder weapons that are out to the blacklist
@@ -105,7 +124,10 @@ function nzRandomBox.DecideWep(ply)
 		end
 	end
 
+	guns = hook.Run("DecideBoxWeapons", ply, guns) or guns -- Let a thirdparty hook decide our final guns table (This can allow easy weapon injecting)
+
 	local gun = nzMisc.WeightedRandom( guns ) -- Randomly decide by weight
+
 	gun = hook.Call("OnPlayerBuyBox", nil, ply, gun) or gun
 	
 	return gun

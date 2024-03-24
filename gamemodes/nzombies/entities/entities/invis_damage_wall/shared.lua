@@ -8,6 +8,8 @@ ENT.Contact			= "youtube.com/Zet0r"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 	-- Min bound is for now just the position
 	--self:NetworkVar("Vector", 0, "MinBound")
@@ -15,6 +17,7 @@ function ENT:SetupDataTables()
 	self:NetworkVar("Bool", 0, "Radiation")
 	self:NetworkVar("Bool", 1, "Poison")
 	self:NetworkVar("Bool", 2, "Tesla")
+	self:NetworkVar("Bool", 3, "KillZombies")
 	self:NetworkVar("Int", 0, "Damage")
 	self:NetworkVar("Float", 0, "Delay")
 end
@@ -39,14 +42,10 @@ function ENT:Initialize()
 	--self:SetFilter(true, true)
 end
 
-function ENT:StartTouch(ent)
+function ENT:Touch(ent)
 	if ent:IsPlayer() and ent:GetNotDowned() and !table.HasValue(self.PlayersInside, ent) then
 		table.insert(self.PlayersInside, ent)
 	end
-end
-
-function ENT:Touch(ent)
-	--print("Touch", ent)
 end
 
 function ENT:EndTouch(ent)

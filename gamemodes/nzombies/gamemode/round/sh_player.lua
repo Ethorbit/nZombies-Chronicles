@@ -67,3 +67,64 @@ function player.GetAllTargetable()
 	
 	return result
 end
+
+function player.FindBySpawnerClass(ply)
+    local result = {}
+    
+    for _, plySpawn in pairs(ents.FindByClass(ply:GetSpawnerClass())) do
+        if (plySpawn:HasPlayer(self)) then
+            table.insert(result, ply)
+        end    
+    end
+
+    return result
+end
+
+// Keep track of players that are connecting, Gmod is too dumb
+// to provide that functionality by default:
+local players_connecting = {}
+local player_last_connect_time = CurTime()
+local player_last_disconnect_time = 0
+
+function player.GetAllConnecting()
+	local tbl = {}
+	
+	for k,_ in pairs(players_connecting) do
+		tbl[#tbl + 1] = k 
+	end
+
+	return tbl
+end
+
+function player.GetLastConnectTime()
+	return math.Clamp(CurTime() - player_last_connect_time, 0, math.huge)
+end
+
+function player.GetLastDisconnectTime()
+	return math.Clamp(CurTime() - player_last_disconnect_time, 0, math.huge)
+end
+
+gameevent.Listen(SERVER and "player_connect" or "player_connect_client")
+hook.Add(SERVER and "player_connect" or "player_connect_client", "NZConnectingPlayersConnect", function(data)
+	local id = data.networkid
+	if id == "BOT" then return end -- Bots get into the game immediately, and players who are in the game are not counted as connecting
+	players_connecting[id] = true
+	player_last_connect_time = CurTime()
+end)
+
+gameevent.Listen("player_disconnect")
+hook.Add("player_disconnect", "NZConnectingPlayersDisconnect", function(data)
+	local id = data.networkid
+	players_connecting[id] = nil
+	player_last_disconnect_time = CurTime()
+end)
+
+-- They're in, which means they're not connecting anymore - so remove them:
+gameevent.Listen("player_spawn")
+hook.Add("player_spawn", "NZConnectingPlayersAuthed", function(data)
+	local ply = Player(data.userid)
+	if !IsValid(ply) then return end
+	
+	local id = ply:SteamID()
+	players_connecting[id] = nil
+end)

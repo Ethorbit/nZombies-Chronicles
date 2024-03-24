@@ -8,6 +8,7 @@ if SERVER then
 	
 	local function ReceiveData(len, ply)
 		if !IsValid(ply) then return end
+		if !ply:IsInCreative() then return end -- Vulnerability fixed by Ethorbit
 		local id = net.ReadString()
 		local wep = ply:GetActiveWeapon()
 		

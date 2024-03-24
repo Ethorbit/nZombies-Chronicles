@@ -2,7 +2,7 @@
 include('shared.lua')
 
 
-SWEP.PrintName			= "Crowbar"
+SWEP.PrintName			= "Knife"
 SWEP.ClassName			= "nz_quickknife_crowbar"
 SWEP.Slot				= 0
 SWEP.SlotPos			= 0

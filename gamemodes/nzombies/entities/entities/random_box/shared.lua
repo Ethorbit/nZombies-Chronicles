@@ -8,6 +8,8 @@ ENT.Contact			= "Don't"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 
 	self:NetworkVar( "Bool", 0, "Open" )
@@ -20,6 +22,12 @@ function ENT:Initialize()
 	self:PhysicsInit( SOLID_VPHYSICS )
 	self:SetMoveType( MOVETYPE_NONE )
 	self:SetSolid( SOLID_VPHYSICS )
+	self:AddEFlags(EFL_FORCE_CHECK_TRANSMIT)
+
+	local phys = self:GetPhysicsObject()
+	if (IsValid(phys)) then
+		phys:EnableMotion(false)		
+	end
 
 	--[[local phys = self:GetPhysicsObject()
 	if (phys:IsValid()) then
@@ -41,10 +49,15 @@ function ENT:Initialize()
 		self.Light:SetAngles(Angle(0, ang[2], 180))
 		self.Light:SetPos(self:GetPos() - Vector(0,0,50))
 		--self.Light:SetParent(self)
-		self.Light:SetColor(Color(150,200,255))
+		if !SavedMapConfig || !SavedMapConfig["BoxColor"] then
+			self.Light:SetColor(Color(150,200,255))
+		else
+			self.Light:SetColor(SavedMapConfig["BoxColor"])
+		end
+		
 		self.Light:DrawShadow(false)
 		local min, max = self.Light:GetRenderBounds()
-		self.Light:SetRenderBounds(Vector(min.x, min.y, min.z), Vector(max.x, max.y, max.z*10))
+		self.Light:SetRenderBounds(Vector(min.x - 50, min.y - 50, min.z), Vector(max.x - 50, max.y - 50, max.z*10))
 		
 		local scale = Vector( 1, 1, 5 )
 		local mat = Matrix()
@@ -55,14 +68,35 @@ function ENT:Initialize()
 	end
 end
 
+function ENT:UpdateTransmitState() -- Always transmit to avoid clientside entity awareness issues
+	return TRANSMIT_ALWAYS
+end
+
 function ENT:Use( activator, caller )
+	if (isnumber(activator.LastBoxUseTime) and CurTime() < activator.LastBoxUseTime) then return end
+	if (isnumber(activator.nextUseTime) and CurTime() < activator.nextUseTime) then return end
+	activator.nextUseTime = CurTime() + 1
 	if self:GetOpen() == true or self.Moving then return end
+	
+	if (activator:GetPoints() >= 950) then
+		nzSounds:PlayEnt("Open", self)
+		self.LastActivator = activator
+	end
+
 	self:BuyWeapon(activator)
+
 	-- timer.Simple(5,function() self:MoveAway() end)
 end
 
 function ENT:BuyWeapon(ply)
+	if (self:GetOpen()) then return end -- You can't buy the box while a weapon is still there
 	ply:Buy(nzPowerUps:IsPowerupActive("firesale") and 10 or 950, self, function()
+		if (util.NetworkStringToID("VManip_SimplePlay") != 0) then
+			net.Start("VManip_SimplePlay")
+			net.WriteString("use")
+			net.Send(ply)
+		end
+		
         local class = nzRandomBox.DecideWep(ply)
         if class != nil then
       		--ply:TakePoints(nzPowerUps:IsPowerupActive("firesale") and 10 or 950)
@@ -87,11 +121,13 @@ function ENT:Open()
 end
 
 function ENT:Close()
+	hook.Call("OnBoxClose", nil, self)
 	local sequence = self:LookupSequence("Open")
 	self:ResetSequence(sequence)
 	self:AddEffects( EF_ITEM_BLINK )
 
 	self:SetOpen(false)
+	nzSounds:PlayEnt("Close", self)
 end
 
 function ENT:SpawnWeapon(activator, class)
@@ -105,15 +141,16 @@ function ENT:SpawnWeapon(activator, class)
 	--wep:SetParent( self )
 	wep.Box = self
 	--wep:SetAngles( self:GetAngles() )
-	self:EmitSound("nz/randombox/random_box_jingle.wav")
-
+	--self:EmitSound("nz/randombox/random_box_jingle.wav")
+	nzSounds:PlayEnt("Jingle", self)
 	return wep
 end
 
 function ENT:Think()
 	self:NextThink(CurTime())
 	
-	if self.MarkedForRemoval and !self:GetOpen() then
+	if !self:GetOpen() and (self.MarkedForRemoval or (self.IsFireSaleBox and !nzPowerUps:IsPowerupActive("firesale"))) then
+		self:Close()
 		self:Remove()
 	end
 	
@@ -121,12 +158,16 @@ function ENT:Think()
 end
 
 function ENT:MoveAway()
-	nzNotifications:PlaySound("nz/randombox/Announcer_Teddy_Zombies.wav", 0)
+	if (nzPowerUps:IsPowerupActive("firesale")) then return end -- This just simply shouldn't happen..
+
+	--nzNotifications:PlaySound("nz/randombox/Announcer_Teddy_Zombies.wav", 0)
+	hook.Call("OnBoxMoveAway", nil, self)
 	self.Moving = true
 	self:SetSolid(SOLID_NONE)
 	local s = 0
 	local ang = self:GetAngles()
 	-- Shake Effect
+	nzSounds:PlayEnt("Shake", self)
 	timer.Create( "shake", 0.1, 300, function()
 		if s < 23 then
 			if s % 2 == 0 then
@@ -145,6 +186,15 @@ function ENT:MoveAway()
 		s = s + 1
 	end)
 
+	timer.Simple(0.1, function()
+		if (!IsValid(self)) then return end
+		self:EmitSound("nz/effects/gone.wav")
+		timer.Simple(0.1, function()
+			if (!IsValid(self)) then return end
+			nzSounds:Play("Bye")
+		end)
+	end)
+
 	-- Move Up
 	timer.Simple( 1, function()
 		timer.Create( "moveAway", 5, 1, function()
@@ -152,12 +202,40 @@ function ENT:MoveAway()
 			timer.Destroy("moveAway")
 			timer.Destroy("shake")
 
+			local old_box_spawn = self.SpawnPoint
 			self.SpawnPoint.Box = nil
 			--self.SpawnPoint:SetBodygroup(1,0)
 			self:MoveToNewSpot(self.SpawnPoint)
-			self:EmitSound("nz/randombox/poof.wav")
+			--self:EmitSound("nz/randombox/poof.wav")
+			nzSounds:PlayEnt("Poof", self)
+
 			self:Remove()
+
+			-- We moved away on a Firesale, place a new Firesale box on our old spawn point (which would now be empty)
+			if (nzPowerUps:IsPowerupActive("firesale")) then 
+				local box = ents.Create( "random_box" )
+				local pos = old_box_spawn:GetPos()
+				local ang = old_box_spawn:GetAngles()
+			
+				box:SetPos( pos + ang:Up()*10 + ang:Right()*7 )
+				box:SetAngles( ang )
+				box.IsFireSaleBox = true
+				box:Spawn()
+				--box:PhysicsInit( SOLID_VPHYSICS )
+				box.SpawnPoint = old_box_spawn
+
+				old_box_spawn.FireSaleBox = box		
+				old_box_spawn:SetBodygroup(1,1)
+
+				local phys = box:GetPhysicsObject()
+				if phys:IsValid() then
+					phys:EnableMotion(false)
+				end
+				
+				--box:EmitSound("nz_firesale_jingle")
+			end
 		end)
+		
 		--print(self:GetMoveType())
 		self:SetMoveType(MOVETYPE_FLY)
 		self:SetGravity(0.1)
@@ -191,6 +269,7 @@ end
 function ENT:MoveToNewSpot(oldspot)
 	-- Calls mapping function excluding the current spot
 	nzRandomBox.Spawn(oldspot)
+	nzRound:SetBoxHasMoved(true)
 end
 
 function ENT:MarkForRemoval()

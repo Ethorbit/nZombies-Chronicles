@@ -9,6 +9,9 @@ CreateConVar( "cl_playerbodygroups", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR
 
 
 function nzPlayers:PlayerModelEditor()
+	if GetConVar("sv_playermodel_selector_force") then	
+		LocalPlayer():ConCommand("playermodel_selector") -- Open the Enhanced Playermodel Selector instead
+	else
 		local window = vgui.Create("DFrame")
 		window:SetWidth(960)
 		window:SetHeight(700)
@@ -252,7 +255,7 @@ function nzPlayers:PlayerModelEditor()
 		function window:OnClose()
 			--gui.EnableScreenClicker(false)
 		end
-		
+	end
 end
 
 list.Set( "PlayerOptionsAnimations", "gman", { "menu_gman" } )

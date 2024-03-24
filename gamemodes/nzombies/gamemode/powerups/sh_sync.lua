@@ -74,7 +74,7 @@ if CLIENT then
 					rising = false
 				end
 			else
-				fade = fade - 100*FrameTime()
+				fade = fade - 300*FrameTime()
 				if fade <= 0 then
 					hook.Remove("RenderScreenspaceEffects", "DrawNukeEffect")
 				end

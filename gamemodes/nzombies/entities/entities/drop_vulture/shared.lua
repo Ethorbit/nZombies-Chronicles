@@ -19,7 +19,7 @@ local vulturedrops = {
 		id = "points",
 		model = Model("models/props_junk/garbage_bag001a.mdl"),
 		effect = function(ply)
-			ply:GivePoints(math.random(5,20))
+			ply:GivePoints(math.random(45,90))
 			return true
 		end,
 		timer = 30,
@@ -61,12 +61,15 @@ local vulturedrops = {
 		id = "gas",
 		model = Model(""),
 		effect = function(ply)
-			ply:SetTargetPriority(TARGET_PRIORITY_NONE)
-			timer.Simple(3, function()
-				if IsValid(ply) then
-					ply:SetDefaultTargetPriority()
-				end
-			end)
+			if IsValid(ply) and ply:IsInCreative() or IsValid(ply) and ply:Team() == TEAM_PLAYERS and ply:GetNotDowned() and !nzPowerUps:IsPlayerPowerupActive(ply, "zombieblood") then
+				ply:SetTargetPriority(TARGET_PRIORITY_NONE)
+				
+				timer.Simple(3, function()
+					if IsValid(ply) and ply:IsInCreative() or IsValid(ply) and ply:Team() == TEAM_PLAYERS and ply:GetNotDowned() and !nzPowerUps:IsPlayerPowerupActive(ply, "zombieblood") then
+						ply:SetDefaultTargetPriority()
+					end
+				end)
+			end
 		end,
 		timer = 5,
 		draw = function(self)
@@ -144,7 +147,7 @@ if CLIENT then
 		self:SetRenderAngles(self:GetRenderAngles()+(Angle(0,50,0)*FrameTime()))
 	end
 
-	hook.Add( "PreDrawHalos", "drop_powerups_halos", function()
-		halo.Add( ents.FindByClass( "drop_powerup" ), Color( 0, 255, 0 ), 2, 2, 2 )
-	end )
+	-- hook.Add( "PreDrawHalos", "drop_powerups_halos", function()
+	-- 	halo.Add( ents.FindByClass( "drop_powerup" ), Color( 0, 255, 0 ), 2, 2, 2 )
+	-- end )
 end

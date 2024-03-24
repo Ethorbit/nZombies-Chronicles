@@ -8,6 +8,8 @@ ENT.Contact			= "youtube.com/Zet0r"
 ENT.Purpose			= "Scriptable prop for nZombies"
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 	self:NetworkVar( "Entity", 0, "Workbench" )
 end

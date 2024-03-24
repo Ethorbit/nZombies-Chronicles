@@ -17,7 +17,7 @@ if SERVER then
 			local radiation = data.dmgtype == 1
 			local poison = data.dmgtype == 2
 			local tesla = data.dmgtype == 3
-			nzMapping:CreateInvisibleDamageWall(vec1, vec2, ply, data.dmg or 1, data.delay or 0.5, radiation, poison, tesla)
+			nzMapping:CreateInvisibleDamageWall(vec1, vec2, ply, data.dmg or 1, data.delay or 0.5, radiation, poison, tesla, data.killzombies)
 		end
 	end)
 end
@@ -86,7 +86,7 @@ nzTools:CreateTool("inviswall", {
 		pnl:Dock(FILL)
 		
 		local chk = vgui.Create("DCheckBoxLabel", pnl)
-		chk:SetPos( 100, 50 )
+		chk:SetPos( 200, 20 )
 		chk:SetText( "Preview Config" )
 		chk:SetTextColor( Color(50,50,50) )
 		chk:SetConVar( "nz_creative_preview" )
@@ -98,14 +98,14 @@ nzTools:CreateTool("inviswall", {
 		textw:SetFont("Trebuchet18")
 		textw:SetTextColor( Color(150, 50, 50) )
 		textw:SizeToContents()
-		textw:SetPos(30, 70)
+		textw:SetPos(120, 50)
 
 		local textw2 = vgui.Create("DLabel", pnl)
 		textw2:SetText("correctly at the moment and will not save!")
 		textw2:SetFont("Trebuchet18")
 		textw2:SetTextColor( Color(150, 50, 50) )
 		textw2:SizeToContents()
-		textw2:SetPos(32, 80)
+		textw2:SetPos(120, 65)
 		
 		return pnl
 	end,

@@ -10,11 +10,15 @@ ENT.Instructions	= ""
 
 ENT.NZOnlyVisibleInCreative = true
 
+ENT.NZEntity = true
+
+ENT.Players = {}
+
 function ENT:Initialize()
 	self:SetModel( "models/player/odessa.mdl" )
 	self:SetMoveType( MOVETYPE_NONE )
 	self:SetSolid( SOLID_VPHYSICS )
-	self:SetCollisionGroup( COLLISION_GROUP_WEAPON )
+	self:SetCollisionGroup( COLLISION_GROUP_DEBRIS )
 	self:SetColor(Color(0,0,255))
 	self:DrawShadow( false )
 end

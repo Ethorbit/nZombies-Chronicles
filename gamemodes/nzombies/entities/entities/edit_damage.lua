@@ -16,6 +16,8 @@ ENT.Category			= "Editors"
 
 ENT.NZOnlyVisibleInCreative = true
 
+ENT.NZEntity = true
+
 function ENT:Initialize()
 
 	--BaseClass.Initialize( self )
@@ -106,6 +108,7 @@ function ENT:SetupDataTables()
 	self:NetworkVar( "Bool",	1, "Tesla", { KeyName = "tesla", Edit = { type = "Boolean", order = 5 } }  );
 	self:NetworkVar( "Bool",	2, "Poison", { KeyName = "poison", Edit = { type = "Boolean", order = 6 } }  );
 	self:NetworkVar( "Bool",	3, "Radiation", { KeyName = "radiation", Edit = { type = "Boolean", order = 7 } }  );
+	self:NetworkVar( "Bool",	4, "KillZombies", { KeyName = "killzombies", Edit = { type = "Boolean", order = 8 } }  );
 	
 	if SERVER then
 		self:NetworkVarNotify("Radius", self.OnRadiusChanged)
@@ -117,6 +120,7 @@ function ENT:SetupDataTables()
 		self:SetTesla(false)
 		self:SetPoison(false)
 		self:SetRadiation(false)
+		self:SetKillZombies(false)
 	end
 
 end

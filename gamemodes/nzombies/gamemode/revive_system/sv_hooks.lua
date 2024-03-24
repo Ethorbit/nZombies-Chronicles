@@ -14,6 +14,15 @@ function nzRevive:PlayerDowned( ply )
 end
 
 function nzRevive:PlayerRevived( ply )
+	if (IsValid(ply)) then
+		if (!ply:IsPlayer()) then
+			ply = ply:GetPerkOwner()
+		end
+
+		if (IsValid(ply) and ply:IsPlayer()) then
+			ply:SetUsingSpecialWeapon(false)
+		end
+	end
 	self:SendPlayerRevived( ply )
 end
 

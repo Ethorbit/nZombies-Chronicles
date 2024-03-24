@@ -12,7 +12,7 @@ local states = {
 
 function nzRound:StateChange( old, new )
 	if new == ROUND_WAITING then
-		nzRound:EnableSpecialFog( false )
+		--nzRound:EnableSpecialFog( false )
 		hook.Call( "OnRoundWating", nzRound )
 	else
 		hook.Call( states[new], nzRound )
@@ -20,23 +20,25 @@ function nzRound:StateChange( old, new )
 	hook.Call( "OnRoundChangeState", nzRound, new, old )
 end
 
-function nzRound:OnRoundPreperation()
-	if !self:IsSpecial() then
-		self:EnableSpecialFog(false)
-	end
-end
+-- function nzRound:OnRoundPreperation()
+-- 	if !self:IsSpecial() then
+-- 		self:EnableSpecialFog(false)
+-- 	end
+-- end
 
-function nzRound:OnRoundStart()
-	if self:IsSpecial() then
-		self:EnableSpecialFog(true)
-	else
-		self:EnableSpecialFog(false)
-	end
-end
+-- Removed because it's done serverside now
+-- function nzRound:OnRoundStart()
+-- 	if self:IsSpecial() then
+-- 		self:EnableSpecialFog(true)
+-- 	else
+-- 		self:EnableSpecialFog(false)
+-- 	end
+-- end
 
 net.Receive("nz_hellhoundround", function()
 	if net.ReadBool() then
-		hook.Call( "OnSpecialRoundStart" )
-		surface.PlaySound("nz/round/dog_start.wav")
+		--hook.Call( "OnSpecialRoundStart" )
+		nzSounds:Play("DogRound")
+		--surface.PlaySound("nz/round/dog_start.wav")
 	end
 end)

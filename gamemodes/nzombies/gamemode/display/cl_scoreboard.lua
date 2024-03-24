@@ -81,24 +81,24 @@ local PLAYER_LINE = {
 			surface.SetDrawColor(255, 255, 255)
 			local num = 0
 			for k,v in pairs(self.Player:GetCarryItems()) do
-				local item = nzItemCarry.Items[v]
-				if item and (item.icon or item.model) then
-					local x, y = pnl:GetPos()
+			 	local item = nzItemCarry.Items[v]
+			 	if item and (item.icon or item.model) then
+			 		local x, y = pnl:GetPos()
 					
-					if item.model then
-						surface.SetMaterial(item.model)
-						surface.DrawTexturedRect(x - num*26, y + 6, 24, 24)
-						if item.icon then
-							surface.SetMaterial(item.icon)
-							surface.DrawTexturedRect(x - num*26 + 18, y, 12, 12)
-						end
-					else
-						surface.SetMaterial(item.icon)
-						surface.DrawTexturedRect(x - num*26, y + 6, 24, 24)
-					end
+			 		if item.model then
+			 			surface.SetMaterial(item.model)
+			 			surface.DrawTexturedRect(x - num*26, y + 6, 24, 24)
+			 			if item.icon then
+			 				surface.SetMaterial(item.icon)
+			 				surface.DrawTexturedRect(x - num*26 + 18, y, 12, 12)
+			 			end
+			 		else
+			 			surface.SetMaterial(item.icon)
+			 			surface.DrawTexturedRect(x - num*26, y + 6, 24, 24)
+			 		end
 					
-					num = num + 1
-				end
+			 		num = num + 1
+			 	end
 			end
 		end
 
@@ -181,8 +181,37 @@ local PLAYER_LINE = {
 				self.Mute:SetImage( "icon32/unmuted.png" )
 			end
 
-			self.Mute.DoClick = function() self.Player:SetMuted( !self.Muted ) end
+			self.Mute.DoClick = function() 
+				self.Player:SetMuted( !self.Muted ) 
 
+				-- Save muted players to file, so stupid Gmod never forgets
+				if (!file.Exists("nz", "DATA")) then
+					file.CreateDir("nz")
+				end
+
+				if (!file.Exists("nz/game", "DATA")) then
+					file.CreateDir("nz/game")
+				end
+
+				local mutedPlys
+				if (file.Exists("nz/game/mutedplayers.txt", "DATA")) then
+					mutedPlys = util.JSONToTable(file.Read("nz/game/mutedplayers.txt", "DATA"))
+				else
+					mutedPlys = {}
+				end
+
+				if (!self.Muted) then
+					mutedPlys[self.Player:SteamID()] = true
+				else
+					mutedPlys[self.Player:SteamID()] = false
+				end
+
+				file.Write("nz/game/mutedplayers.txt", util.TableToJSON(mutedPlys))
+
+				timer.Simple(1, function()
+					hook.Call("GM_UpdatedMyMutedPlayers")
+				end)
+			end
 		end
 
 		--

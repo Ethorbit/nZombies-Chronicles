@@ -34,7 +34,9 @@ end
 
 function meta:SetDefaultTargetPriority()
 	if self:IsPlayer() then
-		if self:GetNotDowned() and self:IsPlaying() then
+		if self:Team() == TEAM_SPECTATOR then
+			self:SetTargetPriority(TARGET_PRIORITY_NONE)
+		elseif (self:IsInCreative() or (self:GetNotDowned() and self:IsPlaying())) then
 			self:SetTargetPriority(TARGET_PRIORITY_PLAYER)
 		else
 			self:SetTargetPriority(TARGET_PRIORITY_NONE)
@@ -83,20 +85,49 @@ if SERVER then
 		util.Effect("web_aura", e)
 		--self.WebAura = CurTime() + time
 	end
+
+	function meta:ApplySlowEffect(new_speed, time)
+		self:SetRunSpeed(new_speed)
+		self.loco:SetDesiredSpeed(new_speed)
+
+		timer.Simple(time, function()
+			if IsValid(self) and !self:GetFrozen() then
+				local speeds = nzRound:GetZombieSpeeds()
+				if speeds then
+					local speed = nzMisc.WeightedRandom(speeds)
+					self:SetRunSpeed(speed)
+					self.loco:SetDesiredSpeed(speed)
+				else
+					self:SetRunSpeed(100)
+					self.loco:SetDesiredSpeed( 100 )
+				end
+			end
+		end)
+	end
 end
 
-local validenemies = {}
-function nzEnemies:AddValidZombieType(class)
-	validenemies[class] = true
-end
+--local validenemies = {}
+--function nzEnemies:AddValidZombieType(class)
+--	validenemies[class] = true
+--end
 
 function meta:IsValidZombie()
-	return self.bIsZombie or validenemies[self:GetClass()] != nil
+    -- Improved by Ethorbit. I think it's safe to say if we registered a zombie for configs then it's a valid zombie..
+    -- Moreover bIsZombie is already built into the zombiebase, so every zombie is automatically valid.
+	return self.bIsZombie or nzConfig.ValidEnemies[self:GetClass()] --or validenemies[self:GetClass()] != nil
 end
 
-nzEnemies:AddValidZombieType("nz_zombie_walker")
-nzEnemies:AddValidZombieType("nz_zombie_special_burning")
-nzEnemies:AddValidZombieType("nz_zombie_special_dog")
+-- This is so silly, we do not need to do this anymore.
+-- From now on if your zombie is registered or inherits from 
+-- zombiebase (which it should always do), it will already be a "Valid Zombie Type"
+-- /Ethorbit
+--nzEnemies:AddValidZombieType("nz_zombie_walker")
+--nzEnemies:AddValidZombieType("nz_zombie_walker_derriese_supersprint")
+--nzEnemies:AddValidZombieType("nz_zombie_walker_tranzit")
+--nzEnemies:AddValidZombieType("nz_zombie_walker_tranzit_supersprint")
+--nzEnemies:AddValidZombieType("nz_zombie_walker_og")
+--nzEnemies:AddValidZombieType("nz_zombie_special_burning")
+--nzEnemies:AddValidZombieType("nz_zombie_special_dog")
 
 function meta:ShouldPhysgunNoCollide()
 	return self.bPhysgunNoCollide
@@ -131,28 +162,49 @@ if SERVER then
 	function Path:Compute(bot, to, func)
 		compute(self, bot, to, func or function( area, fromArea, ladder, elevator, length )
 			if ( !IsValid( fromArea ) ) then
+				-- First area in path, no cost
 				return 0
 			else
 				if ( !bot.loco:IsAreaTraversable( area ) ) then
+					-- Our locomotor says we can't move here
 					return -1
 				end
 				-- Prevent movement through either locked navareas or areas with closed doors
 				if (nzNav.Locks[area:GetID()]) then
 					if nzNav.Locks[area:GetID()].link then
 						if !nzDoors:IsLinkOpened( nzNav.Locks[area:GetID()].link ) then
+							bot:IgnoreTarget(bot:GetTarget())
 							return -1
 						end
 					elseif nzNav.Locks[area:GetID()].locked then
 					return -1 end
+	
+					if !nzNav.Locks[area:GetID()] then
+					end
 				end
 				-- Compute distance traveled along path so far
 				local dist = 0
+				--[[if ( IsValid( ladder ) ) then
+					dist = ladder:GetLength()
+				elseif ( length > 0 ) then
+					--optimization to avoid recomputing length
+					dist = length
+				else
+					dist = ( area:GetCenter() - fromArea:GetCenter() ):GetLength()
+				end]]--
 				local cost = dist + fromArea:GetCostSoFar()
 				--check height change
 				local deltaZ = fromArea:ComputeAdjacentConnectionHeightChange( area )
 				if ( deltaZ >= bot.loco:GetStepHeight() ) then
 					-- use player default max jump height even thouh teh zombie will jump a bit higher
 					if ( deltaZ >= 64 ) then
+						--Include ladders in pathing:
+						--currently disableddue to the lack of a loco:Climb function
+						--[[if IsValid( ladder ) then
+							if ladder:GetTopForwardArea():GetID() == area:GetID() then
+								return cost
+							end
+						end --]]
 						--too high to reach
 						return -1
 					end

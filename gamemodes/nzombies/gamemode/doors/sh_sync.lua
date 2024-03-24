@@ -5,49 +5,42 @@ if SERVER then
 	util.AddNetworkString( "nzDoorOpened" )
 	util.AddNetworkString( "nzClearDoorData" )
 
-	function CleanFlagTable(flags)
-		local newFlags = {}
-		newFlags["link"] = flags["link"]
-		newFlags["buyable"] = tobool(flags["buyable"])
-		newFlags["price"] = flags["price"]
-		newFlags["elec"] = tobool(flags["elec"])
-		newFlags["rebuyable"] = tobool(flags["rebuyable"])
+	local function getDoorData(door)
+		local doorData = door:GetDoorData()
+		if !doorData then doorData = {} end
 
-		return newFlags
+		doorData.flag = doorData.flag or 0
+		doorData.link = doorData.link or 1
+		doorData.price = doorData.price or 1000
+		doorData.elec = doorData.elec or 0
+		doorData.buyable = doorData.buyable or 1
+		doorData.rebuyable = doorData.rebuyable or 0
+		doorData.modelvisible = doorData.modelvisible or 1
+
+		return doorData
 	end
 
 	function nzDoors:SendMapDoorCreation( door, flags, id, ply )
 		if IsValid(door) then
-
-			flags = CleanFlagTable(flags)
 			net.Start("nzMapDoorCreation")
 				net.WriteBool(true)
 				net.WriteInt(door:EntIndex(), 13)
-				net.WriteString(flags["link"] or "")
-				net.WriteString(flags["price"] or "0")
-				net.WriteBool(flags["buyable"] or false)
-				net.WriteBool(flags["elec"] or false)
-				net.WriteBool(flags["rebuyable"] or false)
+				net.WriteTable(flags or {})
 				net.WriteInt(id or 0, 13)
 			return ply and net.Send(ply) or net.Broadcast()
 		end
 	end
-	
+
 	function nzDoors:SendPropDoorCreation( ent, flags, ply )
 		if IsValid(ent) then
-			flags = CleanFlagTable(flags)
 			net.Start("nzPropDoorCreation")
 				net.WriteBool(true)
 				net.WriteInt(ent:EntIndex(), 13)
-				net.WriteString(flags["link"] or "")
-				net.WriteString(flags["price"] or "0")
-				net.WriteBool(flags["buyable"] or false)
-				net.WriteBool(flags["elec"] or false)
-				net.WriteBool(flags["rebuyable"] or false)
+				net.WriteTable(flags or {})
 			return ply and net.Send(ply) or net.Broadcast()
 		end
 	end
-	
+
 	function nzDoors:SendMapDoorRemoval( door, ply )
 		if IsValid(door) then
 			net.Start("nzMapDoorCreation")
@@ -56,7 +49,7 @@ if SERVER then
 			return ply and net.Send(ply) or net.Broadcast()
 		end
 	end
-	
+
 	function nzDoors:SendPropDoorRemoval( ent, ply )
 		if IsValid(ent) then
 			net.Start("nzPropDoorCreation")
@@ -65,20 +58,23 @@ if SERVER then
 			return ply and net.Send(ply) or net.Broadcast()
 		end
 	end
-	
+
 	function nzDoors:SendAllDoorsLocked( ply )
 		net.Start("nzAllDoorsLocked")
 		return ply and net.Send(ply) or net.Broadcast()
 	end
-	
+
 	function nzDoors:SendDoorOpened( door, rebuyable, ply )
 		net.Start("nzDoorOpened")
+			print(door:EntIndex(), door)
+
 			net.WriteBool(IsValid(door) and door:IsPropDoorType())
 			net.WriteInt(door:EntIndex(), 13)
 			net.WriteBool(rebuyable and tobool(rebuyable) or false)
+			net.WriteTable(getDoorData(door))
 		return ply and net.Send(ply) or net.Broadcast()
 	end
-	
+
 	function nzDoors.SendSync( ply )
 		-- Clear all data first
 		if ply then
@@ -88,7 +84,7 @@ if SERVER then
 			net.Start("nzClearDoorData")
 			net.Broadcast()
 		end
-		
+
 		-- Remove old doors
 		for k,v in pairs(nzDoors.MapDoors) do
 			nzDoors:SendMapDoorCreation( nzDoors:DoorIndexToEnt(k), v.flags, k, ply )
@@ -103,7 +99,7 @@ if SERVER then
 			end
 		end
 	end
-	
+
 	FullSyncModules["Doors"] = nzDoors.SendSync
 
 end
@@ -111,26 +107,13 @@ end
 if CLIENT then
 	nzDoors.MapCreationIndexTable = nzDoors.MapCreationIndexTable or {}
 	nzDoors.DisplayLinks = nzDoors.DisplayLinks or {}
-	
-	function BoolToIntString(bool)
-		if bool and isbool(bool) then
-			return "1"
-		else
-			return "0"
-		end
-	end
 
 	local function ReceiveMapDoorCreation()
 		local bool = net.ReadBool()
 		local index = net.ReadInt(13)
 		-- True if door is created, false if removed
 		if bool then
-			local tbl = {} --net.ReadTable()
-			tbl["link"] = net.ReadString()
-			tbl["price"] = net.ReadString()
-			tbl["buyable"] = BoolToIntString(net.ReadBool())
-			tbl["elec"] = BoolToIntString(net.ReadBool())
-			tbl["rebuyable"] = BoolToIntString(net.ReadBool())
+			local tbl = net.ReadTable()
 			nzDoors.MapCreationIndexTable[index] = net.ReadInt(13)
 			nzDoors:SetDoorDataByID( nzDoors.MapCreationIndexTable[index], false, tbl )
 			nzDoors:SetLockedByID( index, false, true )
@@ -146,19 +129,14 @@ if CLIENT then
 		end
 	end
 	net.Receive("nzMapDoorCreation", ReceiveMapDoorCreation)
-	
+
 	local function ReceivePropDoorCreation()
 		local bool = net.ReadBool()
 		local index = net.ReadInt(13)
 		--local ent = Entity(index)
 		-- True if door is created, false if removed
 		if bool then
-			local tbl = {}--net.ReadTable()
-			tbl["link"] = net.ReadString()
-			tbl["price"] = net.ReadString()
-			tbl["buyable"] = BoolToIntString(net.ReadBool())
-			tbl["elec"] = BoolToIntString(net.ReadBool())
-			tbl["rebuyable"] = BoolToIntString(net.ReadBool())
+			local tbl = net.ReadTable()
 			nzDoors:SetDoorDataByID( index, true, tbl )
 			nzDoors:SetLockedByID( index, true, true )
 			--ent:SetDoorData(tbl)
@@ -171,31 +149,38 @@ if CLIENT then
 		end
 	end
 	net.Receive("nzPropDoorCreation", ReceivePropDoorCreation)
-	
+
 	local function ReceiveAllDoorsLocked()
 		for k,v in pairs(nzDoors.MapDoors) do
 			v.locked = true
+			if v.link then
+				nzDoors.OpenedLinks[v.link] = nil
+			end
 		end
 		for k,v in pairs(nzDoors.PropDoors) do
 			v.locked = true
+			if v.link then
+				nzDoors.OpenedLinks[v.link] = nil
+			end
 		end
 	end
 	net.Receive("nzAllDoorsLocked", ReceiveAllDoorsLocked)
-	
+
 	local function ReceiveDoorOpened()
 		local prop = net.ReadBool()
 		local index = net.ReadInt(13)
 		local rebuyable = net.ReadBool()
+		local doordata = net.ReadTable()
 		nzDoors:SetLockedByID( index, prop, rebuyable )
-		--local door = Entity(index)
-		--door:SetLocked(false)
+		nzDoors.OpenedLinks[doordata.link] = true
 	end
 	net.Receive("nzDoorOpened", ReceiveDoorOpened)
-	
+
 	local function ClearAllDoorData()
 		nzDoors.MapDoors = {}
 		nzDoors.PropDoors = {}
 		nzDoors.MapCreationIndexTable = {}
+		nzDoors.OpenedLinks = {}
 	end
 	net.Receive("nzClearDoorData", ClearAllDoorData)
 end

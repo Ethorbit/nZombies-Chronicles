@@ -5,6 +5,7 @@
     "version"   "4.0"
     "menusystem"	"1"
     "maps"	"^nz_"
+	"category" "pve"
 
     "author_name"   "Alig96, Zet0r, Lolle"
     "author_email"  ""

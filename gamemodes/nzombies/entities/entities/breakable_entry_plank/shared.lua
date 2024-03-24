@@ -7,6 +7,11 @@ ENT.Author			= "Alig96"
 ENT.Contact			= "Don't"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
+
+ENT.NZDisallowText = true
+
+--ENT.NZEntity = true
+
 //models/props_interiors/elevatorshaft_door01a.mdl
 //models/props_debris/wood_board02a.mdl
 function ENT:Initialize()

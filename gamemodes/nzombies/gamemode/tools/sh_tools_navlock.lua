@@ -70,15 +70,16 @@ nzTools:CreateTool("navlock", {
 		if GetConVar("nav_edit"):GetBool() and GetConVar("developer"):GetBool() then
 			local pos = navmesh.GetEditCursorPosition()
 			local area = navmesh.GetNearestNavArea(pos)
-			local id = area:GetID()
-			
-			local tbl = nzNav.Locks[id]
-			if tbl then
-				if tbl.locked then
-					if tbl.link then
-						debugoverlay.Sphere(area:GetCenter(), 10, 0.1, Color(0,255,0,50))
-					else
-						debugoverlay.Sphere(area:GetCenter(), 10, 0.1, Color(255,0,0,50))
+			if IsValid(area) then
+				local id = area:GetID()	
+				local tbl = nzNav.Locks[id]
+				if tbl then
+					if tbl.locked then
+						if tbl.link then
+							debugoverlay.Sphere(area:GetCenter(), 10, 0.1, Color(0,255,0,50))
+						else
+							debugoverlay.Sphere(area:GetCenter(), 10, 0.1, Color(255,0,0,50))
+						end
 					end
 				end
 			end

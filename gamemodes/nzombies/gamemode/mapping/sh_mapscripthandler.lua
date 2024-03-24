@@ -94,8 +94,7 @@ if SERVER then
 		end
 		
 		-- Clean up all items
-		nzItemCarry:CleanUp()
-		
+		nzItemCarry:CleanUp()	
 	end
 	
 	hook.Add("PlayerInitialSpawn", "SendMapScriptSpawn", function(ply)

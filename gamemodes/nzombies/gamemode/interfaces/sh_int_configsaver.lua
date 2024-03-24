@@ -1,10 +1,10 @@
--- 
+--
 
 if SERVER then
 	util.AddNetworkString("nz_SaveConfig")
 
 	function nzInterfaces.ConfigSaverHandler( ply, data )
-		if ply:IsSuperAdmin() then
+		if ply:IsNZAdmin() then
 			nzMapping:SaveConfig( data.name )
 		end
 	end
@@ -21,7 +21,7 @@ if CLIENT then
 		DermaPanel:ShowCloseButton( true )
 		DermaPanel:MakePopup()
 		DermaPanel:Center()
-		
+
 		local WarnText = vgui.Create("DLabel", DermaPanel)
 		WarnText:SetSize(280, 20)
 		WarnText:SetPos(10, 50)
@@ -49,10 +49,10 @@ if CLIENT then
 			nzInterfaces.SendRequests( "ConfigSaver", {name = name} )
 		end
 	end
-	
+
 	net.Receive("nz_SaveConfig", function()
 		local name = net.ReadString()
 		nzInterfaces.ConfigSaver(name)
 	end)
-	
+
 end

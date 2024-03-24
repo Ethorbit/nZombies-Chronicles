@@ -4,7 +4,7 @@ nzDoors.MapDoors = nzDoors.MapDoors or {}
 nzDoors.PropDoors = nzDoors.PropDoors or {}
 nzDoors.OpenedLinks = nzDoors.OpenedLinks or {}
 
-function meta:IsLocked() 
+function meta:IsLocked()
 	if self:IsBuyableProp() or self:IsScriptBuyable() then
 		return nzDoors.PropDoors[self:EntIndex()] and nzDoors.PropDoors[self:EntIndex()].locked or false
 	else
@@ -64,7 +64,7 @@ end
 
 function meta:IsBuyableProp()
 	if not IsValid(self) then return false end
-	return self:GetClass() == "prop_buys"
+	return self:GetClass() == "prop_buys" or self:GetClass() == "wall_block" or self.Base == "wall_block"
 end
 
 function meta:IsPropDoorType()

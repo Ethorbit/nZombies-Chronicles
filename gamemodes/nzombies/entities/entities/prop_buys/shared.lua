@@ -1,17 +1,19 @@
 AddCSLuaFile( )
 
 ENT.Type = "anim"
- 
+
 ENT.PrintName		= "wall_block_buy"
 ENT.Author			= "Alig96"
 ENT.Contact			= "Don't"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 
 	self:NetworkVar( "Bool", 0, "NWLocked" )
-	
+
 end
 
 function ENT:Initialize()
@@ -37,7 +39,7 @@ function ENT:BlockUnlock(spawn)
 			self:SetLocked(false)
 		end
 		local pos = self:GetPos()
-		
+
 		timer.Simple(0.5, function()
 			if IsValid(self) then
 				if !self:GetNWLocked() then
@@ -45,7 +47,7 @@ function ENT:BlockUnlock(spawn)
 				end
 			end
 		end)
-		
+
 		local e = EffectData()
 		e:SetRadius(1)
 		e:SetMagnitude(0.5)
@@ -79,7 +81,7 @@ function ENT:OnRemove()
 end
 
 if CLIENT then
-	
+
 	function ENT:Think()
 		if !self.ShakeEffectTime then
 			if !self:GetNoDraw() and !self:GetNWLocked() then
@@ -103,8 +105,19 @@ if CLIENT then
 			--print("Yo shakey")
 			self:SetRenderOrigin(self.ShakePos + Vector(math.Rand(-1,1), math.Rand(-1,1), math.Rand(-1,1)))
 		end
-		self:DrawModel()
-		
+
+        -- Added ability for buyables to have their visibility disabled by Ethorbit
+		-- I mostly added this because I misuse map props to fix zombie navigation lol
+		local flags = nzDoors.PropDoors[self:EntIndex()]
+		flags = flags != nil and flags.flags or nil
+
+		local isPreviewing = !nzRound:InState(ROUND_CREATE) or ConVarExists("nz_creative_preview") and GetConVar("nz_creative_preview"):GetBool()
+		if !isPreviewing then
+			self:DrawModel()
+		elseif (!flags or flags.modelvisible != "0") then
+			self:DrawModel()
+		end 
+
 		if nzRound:InState( ROUND_CREATE ) then
 			if nzDoors.DisplayLinks[self] then
 				nzDisplay.DrawLinks(self, nzDoors.PropDoors[self:EntIndex()].link)

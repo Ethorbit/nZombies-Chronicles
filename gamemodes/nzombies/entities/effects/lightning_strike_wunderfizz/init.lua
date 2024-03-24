@@ -18,7 +18,7 @@ function EFFECT:Init( data )
 	self.MaxArcs = 4
 	self.Radius = 30
 
-	self.Flash = DynamicLight( LocalPlayer():EntIndex() )
+	self.Flash = DynamicLight( LocalPlayer():EntIndex(), true ) -- Made into an elight by Ethorbit, saves on FPS
 
 	self.Flash.pos = self.EndPos
 	self.Flash.r = 255

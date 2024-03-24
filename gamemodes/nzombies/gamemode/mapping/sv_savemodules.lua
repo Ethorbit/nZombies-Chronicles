@@ -5,7 +5,7 @@
 
 -- Loadfunc takes 1 argument, data, which is the saved table
 
--- Cleanents is a table containing all entity types that should get cleaned when the config is cleared
+-- Cleanents is a table (or function) containing all entity types that should get cleaned when the config is cleared
 -- and that should be spared when the map is cleanup for a simple game reset
 
 -- Cleanfunc is run when the config is wiped, like when switching config or /clean (not after each game)
@@ -25,7 +25,7 @@
 -- Put simply:
 -- savefunc: Run when saved
 -- loadfunc: Run when load
--- cleanents: A table containing entities related to module
+-- cleanents: A table (or function) containing entities related to module
 -- cleanfunc: Run when CONFIG is cleaned (optional)
 -- prerestorefunc: Run before MAP is cleaned and NOT config (optional)
 -- postrestorefunc: Run after MAP is cleaned and NOT config (optional)
@@ -33,30 +33,157 @@
 -- Note: MAP is cleaned after EVERY game (restore funcs)!
 -- MAP cleanup ignores all entity types in CLEANENTS!
 -- Always add entity types that relate to your module that should NOT be removed on reset, but SHOULD on clean!
+nzMapping:AddSaveModule("ZedSpawnerRadiusEditors", {
+	savefunc = function()
+		local zed_spawners_editors = {}
+		for _,v in pairs(ents.FindByClass("edit_spawn_radius")) do
+			table.insert(zed_spawners_editors,
+			{
+				radius = v:GetRadius(),
+				hasMpRadius = v:GetHasMultiplayerRadius(),
+				mpRadius = v:GetMultiplayerRadius(),
+				pos = v:GetPos()
+			})
+		end
+		return zed_spawners_editors
+	end,
+	loadfunc = function(data)
+		local spawn_editor_data = data[1] -- Currently we only allow 1 spawn radius editor (Why would you need more than that anyway??)
+		if spawn_editor_data then
+			nzMapping:ZedSpawnerRadiusEditor(spawn_editor_data.radius, spawn_editor_data.hasMpRadius, spawn_editor_data.mpRadius, spawn_editor_data.pos)
+		end
+		-- for k,v in pairs(data) do
+		-- 	nzMapping:ZedSpawnerRadiusEditor(v.radius, v.hasMpRadius, v.mpRadius, v.pos)
+		-- end
+	end,
+	cleanents = {"edit_spawn_radius"},
+})
 
+nzMapping:AddSaveModule("ZedSpawners", {
+	savefunc = function()
+		local zed_spawners = {}
+		for _,v in pairs(Spawner:GetAll()) do
+			if (v:GetClass() != "nz_spawn_zombie_normal" and v:GetClass() != "nz_spawn_zombie_special") then -- The cross compatible ZedSpawns and ZedSpecialSpawns modules take care of these classes already
+				table.insert(zed_spawners,
+				{
+					spawnertype = v:GetClass(),
+					pos = v:GetPos(),
+					link = v.link,
+					spawnnearplayers = v:GetSpawnNearPlayers(),
+					customsettings = v.GetCustomSettings and v:GetCustomSettings() or {}
+				})
+			end
+		end
+		return zed_spawners
+	end,
+	loadfunc = function(data)
+		for k,v in pairs(data) do
+			if (v.spawnertype) then
+				nzMapping:ZedSpawn(v.spawnertype, v.pos, v.link, v.spawnnearplayers, v.customsettings or {})
+			end	
+		end
+	end,
+	cleanents = function() -- Clean ALL the spawner entities
+		return Spawner:GetClasses()
+	end
+})
+
+-- Leaving ZedSpawns and ZedSpecialSpawns for cross-compatibility with old configs,
+-- the brand new ZedSpawners should be used for EVERY spawner instead..
+-- Without these we wouldn't know if a spawner is a normal or special one
+-- because that data would not yet be inside the config files...
 nzMapping:AddSaveModule("ZedSpawns", {
 	savefunc = function()
 		local zed_spawns = {}
 		for _, v in pairs(ents.FindByClass("nz_spawn_zombie_normal")) do
-			table.insert(zed_spawns, {
-			pos = v:GetPos(),
-			link = v.link
+			table.insert(zed_spawns,
+			{
+				spawnertype = v:GetClass(),
+				pos = v:GetPos(),
+				link = v.link,
+				spawnnearplayers = v:GetSpawnNearPlayers()
 			})
 		end
 		return zed_spawns
 	end,
 	loadfunc = function(data)
 		for k,v in pairs(data) do
-			nzMapping:ZedSpawn(v.pos, v.link)
+			nzMapping:ZedSpawn("nz_spawn_zombie_normal", v.pos, v.link, v.spawnnearplayers)
 		end
 	end,
-	cleanents = {"nz_spawn_zombie_normal"}, -- Simply clean entities of this type
+	cleanents = {"nz_spawn_zombie_normal"}
 })
 
 nzMapping:AddSaveModule("ZedSpecialSpawns", {
 	savefunc = function()
 		local zed_special_spawns = {}
 		for _, v in pairs(ents.FindByClass("nz_spawn_zombie_special")) do
+			table.insert(zed_special_spawns,
+			{
+				spawnertype = v:GetClass(),
+				pos = v:GetPos(),
+				link = v.link,
+				spawnnearplayers = v:GetSpawnNearPlayers()
+			})
+		end
+		return zed_special_spawns
+	end,
+	loadfunc = function(data)
+		for k,v in pairs(data) do
+			nzMapping:ZedSpawn("nz_spawn_zombie_special", v.pos, v.link, v.spawnnearplayers)
+		end
+	end,
+	cleanents = {"nz_spawn_zombie_special"},
+})
+--------------------------------------------------------------------------------------------------------
+
+nzMapping:AddSaveModule("TrapsLogic", {
+	savefunc = function()
+		local traps_logic = {}
+		for k, class in pairs(nzTrapsAndLogic:GetAll()) do
+			for _, ent in pairs(ents.FindByClass(class)) do
+				table.insert(traps_logic, duplicator.CopyEntTable(ent))
+			end
+		end
+		return traps_logic
+	end,
+	loadfunc = function(data)
+		for _, entTable in pairs(data) do
+			local ent = duplicator.CreateEntityFromTable(ply, entTable)
+
+			ent:SetMoveType( MOVETYPE_NONE )
+			ent:SetSolid( SOLID_VPHYSICS )
+			ent:Activate()
+			ent:Spawn()
+			ent:PhysicsInit( SOLID_VPHYSICS )
+			ent:SetCollisionGroup(COLLISION_GROUP_DEBRIS_TRIGGER)
+
+			if (entTable.DT) then
+				entTable.DT.Active = false
+				entTable.DT.CooldownActive = false
+			end
+
+			local phys = ent:GetPhysicsObject()
+			if (IsValid(phys)) then
+				phys:EnableMotion(false)
+			end
+
+			for k, v in pairs(entTable.DT) do
+				if ent["Set" .. k] then
+					timer.Simple( 0.1, function() ent["Set" .. k](ent, v) end)
+				end
+			end
+		end
+	end,
+	cleanents = function() 
+		return nzTrapsAndLogic:GetAll()
+	end
+})
+
+nzMapping:AddSaveModule("PlayerSpecialSpawns", {
+	savefunc = function()
+		local zed_special_spawns = {}
+		for _, v in pairs(ents.FindByClass("nz_spawn_player_special")) do
 			table.insert(zed_special_spawns, {
 			pos = v:GetPos(),
 			link = v.link
@@ -66,10 +193,10 @@ nzMapping:AddSaveModule("ZedSpecialSpawns", {
 	end,
 	loadfunc = function(data)
 		for k,v in pairs(data) do
-			nzMapping:ZedSpecialSpawn(v.pos, v.link)
+			nzMapping:PlayerSpecialSpawn(v.pos, v.link)
 		end
 	end,
-	cleanents = {"nz_spawn_zombie_special"},
+	cleanents = {"nz_spawn_player_special"},
 })
 
 nzMapping:AddSaveModule("PlayerSpawns", {
@@ -211,25 +338,107 @@ nzMapping:AddSaveModule("ElecSpawns", {
 	end,
 	cleanents = {"power_box", "button_elec"}, -- Cleans two entity types
 })
-	
+
+
+-- nzMapping:AddSaveModule("BuyablePropSpawns", {
+-- 	savefunc = function()
+-- 		local buyableprop_spawns = {}
+-- 		for _, v in pairs(ents.FindByClass("prop_buys")) do
+
+-- 			-- Convert the table to a flag string - if it even has any
+-- 			local data = v:GetDoorData()
+-- 			local flagstr
+-- 			if data then
+-- 				flagstr = ""
+-- 				for k2, v2 in pairs(data) do
+-- 					flagstr = flagstr .. k2 .."=" .. v2 .. ","
+-- 				end
+-- 				flagstr = string.Trim(flagstr, ",")
+-- 			end
+
+-- 			table.insert(buyableprop_spawns, {
+-- 			pos = v:GetPos(),
+-- 			angle = v:GetAngles(),
+-- 			model = v:GetModel(),
+-- 			flags = flagstr,
+-- 			collision = v:GetCollisionGroup(),
+-- 			})
+-- 		end
+-- 		return buyableprop_spawns
+-- 	end,
+-- 	loadfunc = function(data)
+-- 		for k,v in pairs(data) do
+-- 			local prop = nzMapping:PropBuy(v.pos, v.angle, v.model, v.flags)
+-- 			prop:SetCollisionGroup(v.collision or COLLISION_GROUP_NONE)
+-- 		end
+-- 	end,
+-- 	cleanents = {"prop_buys"},
+-- })
+
 nzMapping:AddSaveModule("BlockSpawns", {
 	savefunc = function()
 		local block_spawns = {}
+
 		for _, v in pairs(ents.FindByClass("wall_block")) do
+			-- Convert the table to a flag string - if it even has any
+			local data = v:GetDoorData()
+			local flagstr
+			if data then
+				flagstr = ""
+				for k2, v2 in pairs(data) do
+					flagstr = flagstr .. k2 .."=" .. v2 .. ","
+				end
+				flagstr = string.Trim(flagstr, ",")
+			end
+
 			table.insert(block_spawns, {
 			pos = v:GetPos(),
 			angle = v:GetAngles(),
 			model = v:GetModel(),
+			flags = flagstr,
 			})
 		end
+
 		return block_spawns
 	end,
 	loadfunc = function(data)
 		for k,v in pairs(data) do
-			nzMapping:BlockSpawn(v.pos, v.angle, v.model)
+			nzMapping:BlockSpawn(v.pos, v.angle, v.model, v.flags)
 		end
 	end,
 	cleanents = {"wall_block"},
+})
+
+nzMapping:AddSaveModule("BlockSpawnsZombie", {
+	savefunc = function()
+		local block_spawns_zombies = {}
+		for _, v in pairs(ents.FindByClass("wall_block_zombie")) do
+			-- Convert the table to a flag string - if it even has any
+			local data = v:GetDoorData()
+			local flagstr
+			if data then
+				flagstr = ""
+				for k2, v2 in pairs(data) do
+					flagstr = flagstr .. k2 .."=" .. v2 .. ","
+				end
+				flagstr = string.Trim(flagstr, ",")
+			end
+
+			table.insert(block_spawns_zombies, {
+			pos = v:GetPos(),
+			angle = v:GetAngles(),
+			model = v:GetModel(),
+			flags = flagstr,
+			})
+		end
+		return block_spawns_zombies
+	end,
+	loadfunc = function(data)
+		for k,v in pairs(data) do
+			nzMapping:BlockSpawnZombie(v.pos, v.angle, v.model, v.flags)
+		end
+	end,
+	cleanents = {"wall_block_zombie"},
 })
 
 nzMapping:AddSaveModule("RandomBoxSpawns", {
@@ -303,20 +512,20 @@ nzMapping:AddSaveModule("DoorSetup", {
 			--print(v.flags)
 			nzDoors:CreateMapDoorLink(k, v.flags)
 		end
-	end, 
+	end,
 	cleanfunc = function()
 		-- Cleans up differently, does not return any entity types
 		for k,v in pairs(nzDoors.MapDoors) do
 			nzDoors:RemoveMapDoorLink( k )
 		end
-		
+
 		-- This module is responsible for both prop doors and map doors
 		nzDoors.MapDoors = {}
 		nzDoors.PropDoors = {}
 		-- Clear all door data on clients
 		net.Start("nzClearDoorData")
 		net.Broadcast()
-	end, 
+	end,
 	postrestorefunc = function(data)
 		-- Doors are reset by map cleanup, we loop through the data and reapply them!
 		for k,v in pairs(nzDoors.MapDoors) do
@@ -429,6 +638,66 @@ nzMapping:AddSaveModule("InvisWalls", {
 	cleanents = {"invis_wall"},
 })
 
+nzMapping:AddSaveModule("InvisWallZombies", {
+	savefunc = function()
+		-- Store all invisible walls with their boundaries and angles
+		local invis_wall_zombies = {}
+		for _, v in pairs(ents.FindByClass("invis_wall_zombie")) do
+			table.insert(invis_wall_zombies, {
+				pos = v:GetPos(),
+				maxbound = v:GetMaxBound(),
+			})
+		end
+		return invis_wall_zombies
+	end,
+	loadfunc = function(data)
+		for k,v in pairs(data) do
+			nzMapping:CreateInvisibleWallZombie(v.pos, v.maxbound)
+		end
+	end,
+	cleanents = {"invis_wall_zombie"},
+})
+
+nzMapping:AddSaveModule("CreateAntiCheatExclusions", {
+	savefunc = function()
+		-- Store all invisible walls with their boundaries and angles
+		local anticheat_exclusions = {}
+		for _, v in pairs(ents.FindByClass("anticheat_exclude")) do
+			table.insert(anticheat_exclusions, {
+				pos = v:GetPos(),
+				maxbound = v:GetMaxBound(),
+			})
+		end
+		return anticheat_exclusions
+	end,
+	loadfunc = function(data)
+		for k,v in pairs(data) do
+			nzMapping:CreateAntiCheatExclusion(v.pos, v.maxbound)
+		end
+	end,
+	cleanents = {"anticheat_exclude"},
+})
+
+nzMapping:AddSaveModule("CreateAntiCheatWalls", {
+	savefunc = function()
+		-- Store all invisible walls with their boundaries and angles
+		local anticheat_walls = {}
+		for _, v in pairs(ents.FindByClass("anticheat_wall")) do
+			table.insert(anticheat_walls, {
+				pos = v:GetPos(),
+				maxbound = v:GetMaxBound(),
+			})
+		end
+		return anticheat_walls
+	end,
+	loadfunc = function(data)
+		for k,v in pairs(data) do
+			nzMapping:CreateAntiCheatWall(v.pos, v.maxbound)
+		end
+	end,
+	cleanents = {"anticheat_wall"},
+})
+
 nzMapping:AddSaveModule("DamageWalls", {
 	savefunc = function()
 		local invis_damage_walls = {}
@@ -441,14 +710,107 @@ nzMapping:AddSaveModule("DamageWalls", {
 				radiation = v:GetRadiation(),
 				poison = v:GetPoison(),
 				tesla = v:GetTesla(),
+				killzombies = v:GetKillZombies()
 			})
 		end
 		return invis_damage_walls
 	end,
 	loadfunc = function(data)
 		for k,v in pairs(data) do
-			nzMapping:CreateInvisibleDamageWall(v.pos, v.maxbound, nil, v.damage, v.delay, v.radiation, v.poison, v.tesla)
+			nzMapping:CreateInvisibleDamageWall(v.pos, v.maxbound, nil, v.damage, v.delay, v.radiation, v.poison, v.tesla, v.killzombies)
 		end
 	end,
 	cleanents = {"invis_damage_wall"},
+})
+
+nzMapping:AddSaveModule("Benches", {
+	savefunc = function()
+		local buildable_table = {}
+		for _, v in pairs(ents.FindByClass("buildable_table")) do
+			table.insert(buildable_table,
+			{
+				pos = v:GetPos(),
+				angle = v:GetAngles(),
+				buildclass = v:GetBuildClass(),
+				wonderweapon = v:GetTreatAsWonderWeapon(),
+				refillammo = v:GetRefillAmmo(),
+				craftuses = v:GetCraftUses(),
+				maxcrafts = v:GetMaxCrafts(),
+				cooldowntime = v:GetCooldownTime(),
+				addtobox = v:GetAddToBox(),
+				boxchance = v:GetBoxChance()
+			})
+		end
+		return buildable_table
+	end,
+	loadfunc = function(data)
+		for k,v in pairs(data) do
+			nzBenches:Add(v.pos, v.angle, data[k])
+		end
+	end,
+	cleanents = {"buildable_table"},
+})
+
+nzMapping:AddSaveModule("BuildableParts", {
+	savefunc = function()
+		local buildable_parts = {}
+		for _, v in pairs(ents.FindByClass("nz_workbench_prop")) do
+			table.insert(buildable_parts,
+			{
+				model = v:GetModel(),
+				angle = v:GetAngles(),
+				pos = v:GetPos(),
+				buildclass = v:GetBuildClass()
+			})
+		end
+		return buildable_parts
+	end,
+	loadfunc = function(data)
+		nzParts:Clear()
+
+		for k,v in pairs(data) do
+			nzParts:Add(v.pos, v.angle, v.model, v.buildclass)
+		end
+	end,
+	cleanents = {"nz_workbench_prop"},
+})
+
+nzMapping:AddSaveModule("Teleporter", {
+	savefunc = function()
+		local teleporters = {}
+		for _, v in pairs(ents.FindByClass("nz_teleporter")) do
+			table.insert(teleporters, {
+				pos = v:GetPos(),
+				angles = v:GetAngles(),
+				flag = v:GetFlag(),
+				destination = v:GetDestination(),
+				requiresdoor = v:GetRequiresDoor(),
+				door = v:GetDoor(),
+				price = v:GetPrice(),
+				mdltype = v:GetModelType(),
+				mdlcollisions = v:GetModelCollisions(),
+				visible = v:GetModelVisible(),
+				useable = v:GetUseable(),
+				gif = v:GetGifType(),
+				teleportertime = v:GetTeleporterTime(),
+				cooldown = v:GetCooldownTime(),
+				tpback = v:GetTPBack(),
+				tpbackdelay = v:GetTPBackDelay(),
+				activatestrap = v:GetActivatesTrap(),
+				trap = v:GetTrap()
+			})
+		end
+		return teleporters
+	end,
+	loadfunc = function(data)
+		for _,v in pairs(data) do
+			nzMapping:Teleporter(v)
+		end
+	end,
+	cleanents = {"nz_teleporter"},
+	postrestorefunc = function(data) -- Post-map cleanup restoration (game reset)
+		for k,v in pairs(ents.FindByClass("nz_teleporter")) do
+			v:TurnOff()
+		end
+	end,
 })

@@ -1,6 +1,11 @@
 --
+nzTarget = {}
+local SavedSoloRevs = SavedSoloRevs == nil and 0 or SavedSoloRevs
+net.Receive("NZSetSoloRevives", function()
+	SavedSoloRevs = net.ReadInt(5)
+end)
 
-local traceents = {
+nzTarget.TraceEnts = {
 	["wall_buys"] = function(ent)
 		local wepclass = ent:GetWepClass()
 		local price = ent:GetPrice()
@@ -10,29 +15,76 @@ local traceents = {
 		local ammo_price = math.Round((price - (price % 10))/2)
 		local text = ""
 
-		if !LocalPlayer():HasWeapon( wepclass ) then
-			text = "Press E to buy " .. name .." for " .. price .. " points."
+		local replacementWep = nil
+		local hasReplacement = false
+		for _,v in pairs(nzWeps:GetAllReplacements(wepclass)) do
+			if isstring(v.ClassName) and LocalPlayer():HasWeapon(v.ClassName) then
+				hasReplacement = true
+				replacementWep = LocalPlayer():GetWeapon(v.ClassName)
+			end
+		end
+
+		if !LocalPlayer():HasWeapon( wepclass ) and !hasReplacement and wepclass != "nz_grenade" then
+			text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy " .. name .." for " .. price .. " points."
 		elseif string.lower(wep.Primary.Ammo) != "none" then
-			if LocalPlayer():GetWeapon( wepclass ):HasNZModifier("pap") then
-				text = "Press E to buy " .. wep.Primary.Ammo .."  Ammo refill for " .. 4500 .. " points."
+			local function showText(newPrice)
+				text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy " .. wep.Primary.Ammo .."  Ammo refill for " .. newPrice .. " points."
+			end
+
+			if wepclass == "nz_grenade" then
+				local nade = LocalPlayer():GetItem("grenade")
+				if (LocalPlayer():HasPerk("widowswine") and (!nade or nade and nade.price < 4000)) then
+					showText(4000)
+				elseif (nade and ammo_price < nade.price) then
+					showText(nade.price)
+				else
+					showText(ammo_price)
+				end
 			else
-				text = "Press E to buy " .. wep.Primary.Ammo .."  Ammo refill for " .. ammo_price .. " points."
+				local wep = LocalPlayer():GetWeapon( wepclass )
+				if (!IsValid(wep) and IsValid(replacementWep)) then
+					for _,v in pairs(nzWeps:GetAllReplacements(wepclass)) do
+						if (isstring(v.ClassName) and LocalPlayer():HasWeapon(v.ClassName)) then
+							wep = LocalPlayer():GetWeapon(v.ClassName)
+						end
+					end
+				end
+
+				if IsValid(wep) and wep:HasNZModifier("pap") or hasReplacement then
+					text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy " .. wep.Primary.Ammo .."  Ammo refill for " .. 4500 .. " points."
+				else
+					text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy " .. wep.Primary.Ammo .."  Ammo refill for " .. ammo_price .. " points."
+				end
 			end
 		else
 			text = "You already have this weapon."
+		end
+
+		if (!LocalPlayer():GetNotDowned()) then
+			text = "You cannot buy this when down."
 		end
 
 		return text
 	end,
 	["breakable_entry"] = function(ent)
 		if ent:GetHasPlanks() and ent:GetNumPlanks() < GetConVar("nz_difficulty_barricade_planks_max"):GetInt() then
-			local text = "Hold E to rebuild the barricade."
+			local text = "Hold " .. nzDisplay.GetKeyFromCommand("+use") .. " to rebuild the barricade."
+
+			if (!LocalPlayer():GetNotDowned()) then
+				text = "You cannot rebuild this when down."
+			end
+
 			return text
 		end
 	end,
 	["random_box"] = function(ent)
 		if !ent:GetOpen() then
-			local text = nzPowerUps:IsPowerupActive("firesale") and "Press E to buy a random weapon for 10 points." or "Press E to buy a random weapon for 950 points."
+			local text = nzPowerUps:IsPowerupActive("firesale") and "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy a random weapon for 10 points." or "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy a random weapon for 950 points."
+
+			if (!LocalPlayer():GetNotDowned()) then
+				text = "You cannot buy this when down."
+			end
+
 			return text
 		end
 	end,
@@ -45,7 +97,11 @@ local traceents = {
 				name = wep.PrintName
 			end
 			if name == nil then name = wepclass end
-			name = "Press E to take " .. name .. " from the box."
+			name = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to take " .. name .. " from the box."
+
+			if (!LocalPlayer():GetNotDowned()) then
+				name = "You cannot take this when down."
+			end
 
 			return name
 		end
@@ -59,25 +115,51 @@ local traceents = {
 		else
 			if ent:GetPerkID() == "pap" then
 				local wep = LocalPlayer():GetActiveWeapon()
-				if wep:HasNZModifier("pap") then
-					if wep.NZRePaPText then
-						text = "Press E to "..wep.NZRePaPText.." for 2000 points."
-					elseif wep:CanRerollPaP() then
-						text = "Press E to reroll attachments for 2000 points."
-					else
-						text = "This weapon is already upgraded."
-					end
+				local replacement = IsValid(wep) and nzWeps:GetReplacement(wep:GetClass())
+				if IsValid(wep) and replacement and replacement.NZOnlyAllowOnePlayerToUse and nzWeps:IsSoloWeaponInUse(replacement.ClassName) then
+					text = "Only one player is allowed to have this upgraded at a time."
 				else
-					text = "Press E to buy Pack-a-Punch for 5000 points."
+					if IsValid(wep) and wep:HasNZModifier("pap") then
+						if wep.NZRePaPText then
+							text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to "..wep.NZRePaPText.." for 2000 points."
+						elseif wep:CanRerollPaP() then
+							if wep.AllowReRollAtts and !nzWeps:IsReplaceable(wep:GetClass()) then
+								text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to reroll attachments for 2000 points."
+							elseif !wep.NZRePaPText and !wep.NZPaPReplacement then -- Replaceable weapons can be PaP-exploited for more ammo
+								text = "Weapon fully upgraded."
+							else
+								text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to upgrade weapon for 2000 points."
+							end
+						else
+							text = "This weapon is already upgraded."
+						end
+					else
+						if (wep.IsSpecial and wep:IsSpecial()) then
+							text = "You cannot pack-a-punch this."
+						else
+							text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy Pack-a-Punch for 5000 points."
+						end
+					end
 				end
 			else
 				local perkData = nzPerks:Get(ent:GetPerkID())
+
 				-- Its on
-				text = "Press E to buy " .. perkData.name .. " for " .. ent:GetPrice() .. " points."
+				if (perkData.name == "Quick Revive" and SavedSoloRevs and SavedSoloRevs >= 3 and #player.GetAllPlaying() <= 1) then
+					text = "No revives left."
+				elseif (#LocalPlayer():GetPerks() >= GetConVar("nz_difficulty_perks_max"):GetInt()) then
+					text = "Too many perks."
+				else
+					text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy " .. perkData.name .. " for " .. ent:GetPrice() .. " points."
+				end
 				-- Check if they already own it
 				if LocalPlayer():HasPerk(ent:GetPerkID()) then
 					text = "You already own this perk."
 				end
+			end
+
+			if (!LocalPlayer():GetNotDowned()) then
+				text = "You cannot buy this when down."
 			end
 		end
 
@@ -91,9 +173,15 @@ local traceents = {
 		local wep = weapons.Get(wepclass)
 		local name = "UNKNOWN"
 		if wep != nil then
-			name = nz.Display_PaPNames[wepclass] or nz.Display_PaPNames[wep.PrintName] or "Upgraded "..wep.PrintName
+			--name = nz.Display_PaPNames[wepclass] or nz.Display_PaPNames[wep.PrintName] or "Upgraded "..wep.PrintName
+			-- ^^^ ok who wrote this gross crap, please stop
+			name = wep.NZPaPName or "Upgraded "..wep.PrintName
 		end
-		name = "Press E to take " .. name .. " from the machine."
+		name = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to take " .. name .. " from the machine."
+
+		if (!LocalPlayer():GetNotDowned()) then
+			name = "You cannot take this when down."
+		end
 
 		return name
 	end,
@@ -103,37 +191,76 @@ local traceents = {
 			text = "The Wunderfizz Orb is currently at another location."
 		elseif ent:GetBeingUsed() then
 			if ent:GetUser() == LocalPlayer() and ent:GetPerkID() != "" and !ent:GetIsTeddy() then
-				text = "Press E to take "..nzPerks:Get(ent:GetPerkID()).name.." from Der Wunderfizz."
+				if #LocalPlayer():GetPerks() >= GetConVar("nz_difficulty_perks_max"):GetInt() then
+					text = "You have too many perks."
+				else
+					text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to take "..nzPerks:Get(ent:GetPerkID()).name.." from Der Wunderfizz."
+				end
 			else
 				text = "Currently in use."
 			end
 		else
 			if #LocalPlayer():GetPerks() >= GetConVar("nz_difficulty_perks_max"):GetInt() then
-				text = "You cannot have more perks."
+				text = "You have too many perks."
 			else
-				text = "Press E to buy Der Wunderfizz for " .. ent:GetPrice() .. " points."
+				text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to buy Der Wunderfizz for " .. ent:GetPrice() .. " points."
 			end
+		end
+
+		if (!LocalPlayer():GetNotDowned()) then
+			text = "You cannot buy this when down."
+		end
+
+		return text
+	end,
+	["nz_teleporter"] = function(ent)
+		local text = ""
+		if !ent:GetUseable() then return text end
+
+		if !nzElec:IsOn() then
+			text = "No Power."
+		elseif ent:GetBeingUsed() then
+			text = "Currently in use."
+		elseif ent:GetOnCooldown() then
+			text = "Teleporter on cooldown!"
+		else
+			if #ent:GetDestinationsUnlocked() <= 0 then
+				text = "A door must be unlocked for this."
+			else
+				-- Its on
+				text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to Teleport for " .. ent:GetPrice() .. " points."
+			end
+		end
+
+		if !LocalPlayer():GetNotDowned() then
+			text = "You cannot use this when down."
+		end
+
+		if LocalPlayer():IsInCreative() then
+			text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to Test Teleporter"
+		elseif #ent:GetDestinations() <= 0 then
+			text = "This cannot be used, it is improperly configured."
 		end
 
 		return text
 	end,
 }
 
-local function GetTarget()
+nzTarget.GetTarget = function()
 	local tr =  {
 		start = EyePos(),
 		endpos = EyePos() + LocalPlayer():GetAimVector()*150,
-		filter = LocalPlayer(),
+		filter = function(ent) return ent != LocalPlayer() and !ent.NZDisallowText end,
+		mask = MASK_ALL
 	}
 	local trace = util.TraceLine( tr )
 	if (!trace.Hit) then return end
 	if (!trace.HitNonWorld) then return end
 
-	--print(trace.Entity:GetClass())
 	return trace.Entity
 end
 
-local function GetDoorText( ent )
+nzTarget.GetDoorText = function(ent)
 	local door_data = ent:GetDoorData()
 	local text = ""
 
@@ -155,10 +282,14 @@ local function GetDoorText( ent )
 				text = door_data.text
 			elseif price != 0 then
 				--print("Still here", nz.nzDoors.Data.OpenedLinks[tonumber(link)])
-				text = "Press E to open for " .. price .. " points."
+				text = "Press " .. nzDisplay.GetKeyFromCommand("+use") .. " to open for " .. price .. " points."
+			end
+
+			if (!LocalPlayer():GetNotDowned()) then
+				text = "You cannot buy this when down."
 			end
 		end
-	elseif door_data and tonumber(door_data.buyable) != 1 and nzRound:InState( ROUND_CREATE ) then
+	elseif ent:GetClass() != "wall_block" and ent.Base != "wall_block" and door_data and tonumber(door_data.buyable) != 1 and nzRound:InState( ROUND_CREATE ) then
 		text = "This door is locked and cannot be bought in-game."
 		--PrintTable(door_data)
 	end
@@ -166,56 +297,51 @@ local function GetDoorText( ent )
 	return text
 end
 
-local function GetText( ent )
+nzTarget.GetText = function(ent)
 
 	if !IsValid(ent) then return "" end
-	
+
 	if ent.GetNZTargetText then return ent:GetNZTargetText() end
 
 	local class = ent:GetClass()
 	local text = ""
 
-	local neededcategory, neededcategory2, deftext, hastext, has2text = ent:GetNWString("NZRequiredItem"), ent:GetNWString("NZRequiredItem2"), ent:GetNWString("NZText"), ent:GetNWString("NZHasText"), ent:GetNWString("NZHas2Text")
+	local neededcategory, deftext, hastext = ent:GetNWString("NZRequiredItem"), ent:GetNWString("NZText"), ent:GetNWString("NZHasText")
 	local itemcategory = ent:GetNWString("NZItemCategory")
 
 	if neededcategory != "" then
 		local hasitem = LocalPlayer():HasCarryItem(neededcategory)
-        text = hasitem and hastext != "" and hastext or deftext
-    elseif neededcategory2 != "" then
-        local hasitem = LocalPlayer():HasCarryItem(neededcategory)
-        text = hasitem and has2text != "" and has2text or deftext
+		text = hasitem and hastext != "" and hastext or deftext
 	elseif deftext != "" then
 		text = deftext
-	elseif itemcategory != "" then
-		local item = nzItemCarry.Items[itemcategory]
-		local hasitem = LocalPlayer():HasCarryItem(itemcategory)
-		if hasitem then
-			text = item and item.hastext or "You already have this."
-		else
-			text = item and item.text or "Press E to pick up."
-		end
 	elseif ent:IsPlayer() then
-		if ent:GetNotDowned() then
-			text = ent:Nick() .. " - " .. ent:Health() .. " HP"
-		else
-			text = "Hold E to revive "..ent:Nick()
+		if !ent.GetTeleporterEntity or (ent.GetTeleporterEntity and !IsValid(ent:GetTeleporterEntity())) then -- Do not show their name if they are teleporting
+			if ent:GetNotDowned() then
+				text = ent:Nick() .. " - " .. ent:Health() .. " HP"
+			else
+				if (!LocalPlayer():IsSpectating() && LocalPlayer():GetNotDowned()) then
+					text = "Hold " .. nzDisplay.GetKeyFromCommand("+use") .. " to revive "..ent:Nick()
+				else
+					text = ent:Nick() .. " - Downed"
+				end
+			end
 		end
 	elseif ent:IsDoor() or ent:IsButton() or ent:GetClass() == "class C_BaseEntity" or ent:IsBuyableProp() then
-		text = GetDoorText(ent)
+		text = nzTarget.GetDoorText(ent)
 	else
-		text = traceents[class] and traceents[class](ent)
+		text = nzTarget and nzTarget.TraceEnts[class] and nzTarget.TraceEnts[class](ent)
 	end
 
 	return text
 end
 
-local function GetMapScriptEntityText()
+nzTarget.GetMapScriptEntityText = function()
 	local text = ""
 
 	for k,v in pairs(ents.FindByClass("nz_script_triggerzone")) do
 		local dist = v:NearestPoint(EyePos()):Distance(EyePos())
 		if dist <= 1 then
-			text = GetDoorText(v)
+			text = nzTarget.GetDoorText(v)
 			break
 		end
 	end
@@ -253,12 +379,12 @@ end
 
 function GM:HUDDrawTargetID()
 
-	local ent = GetTarget()
+	local ent = nzTarget.GetTarget()
 
 	if ent != nil then
-		DrawTargetID(GetText(ent))
+		DrawTargetID(nzTarget.GetText(ent))
 	else
-		DrawTargetID(GetMapScriptEntityText())
+		DrawTargetID(nzTarget.GetMapScriptEntityText())
 	end
 
 end

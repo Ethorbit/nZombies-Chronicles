@@ -1,19 +1,53 @@
 --
 
-function nzMapping:ZedSpawn(pos, link, ply)
+function nzMapping:ZedSpawnerRadiusEditor(radius, has_mp_radius, mp_radius, pos)
+	local ent = ents.Create("edit_spawn_radius")
+	ent:SetPos(pos)
+	ent:Spawn()
+	ent:SetRadius(radius)
+	ent:SetHasMultiplayerRadius(has_mp_radius)
+	ent:SetMultiplayerRadius(mp_radius)
 
-	local ent = ents.Create("nz_spawn_zombie_normal")
+	return ent
+end
+
+function nzMapping:ZedSpawn(class, pos, link, spawnnearplayers, customsettings, ply)
+	-- if (true) then
+	-- 	nzMapping:PropBuy(pos, Angle(0,0,0), "models/nz_zombie/zombie_hellhound.mdl", nil, ply)
+	-- return end
+
+	local ent = ents.Create(class or "nz_spawn_zombie_normal")
 	pos.z = pos.z - ent:OBBMaxs().z
+	ent:SetModel("models/nz_zombie/zombie_hellhound.mdl")
 	ent:SetPos( pos )
 	ent:Spawn()
+
+	if (customsettings and ent.SetCustomSettings) then
+		ent:SetCustomSettings(customsettings)
+	end
+
 	-- For the link displayer
-	if link != nil then
+	if link != nil and link != "disabled" then
 		ent:SetLink(tostring(link))
 		ent.link = tostring(link)
 	end
 
+	if link == nil or #link <= 0 then
+		ent.flag = 0
+	end
+
+	if spawnnearplayers != nil then
+		ent:SetSpawnNearPlayers(spawnnearplayers)
+	else -- So we don't break all configs, we make sure undefined just means zombies can spawn near players
+		if (class == "nz_spawn_zombie_special" or class == "nz_spawn_zombie_dog") then
+			ent:SetSpawnNearPlayers(false)
+		else
+			ent:SetSpawnNearPlayers(true)
+		end
+	end
+
 	if ply then
-		undo.Create( "Zombie Spawnpoint" )
+		undo.Create( ent.PrintName .. " Spawnpoint" )
 			undo.SetPlayer( ply )
 			undo.AddEntity( ent )
 		undo.Finish( "Effect (" .. tostring( model ) .. ")" )
@@ -21,9 +55,9 @@ function nzMapping:ZedSpawn(pos, link, ply)
 	return ent
 end
 
-function nzMapping:ZedSpecialSpawn(pos, link, ply)
+function nzMapping:PlayerSpecialSpawn(pos, link, ply)
 
-	local ent = ents.Create("nz_spawn_zombie_special")
+	local ent = ents.Create("nz_spawn_player_special")
 	pos.z = pos.z - ent:OBBMaxs().z
 	ent:SetPos( pos )
 	ent:Spawn()
@@ -34,7 +68,7 @@ function nzMapping:ZedSpecialSpawn(pos, link, ply)
 	end
 
 	if ply then
-		undo.Create( "Special Zombie Spawnpoint" )
+		undo.Create( "Special Player Spawnpoint" )
 			undo.SetPlayer( ply )
 			undo.AddEntity( ent )
 		undo.Finish( "Effect (" .. tostring( model ) .. ")" )
@@ -119,6 +153,12 @@ function nzMapping:PropBuy(pos, ang, model, flags, ply)
 	prop:Spawn()
 	prop:PhysicsInit( SOLID_VPHYSICS )
 
+	if flags == nil or flags == 0 or flags == "disabled" then
+		prop.flag = 0
+	else
+		prop.flag = 1
+	end
+
 	-- REMINDER APPY FLAGS
 	if flags != nil then
 		nzDoors:CreateLink( prop, flags )
@@ -165,7 +205,7 @@ function nzMapping:Electric(pos, ang, model, ply)
 	return ent
 end
 
-function nzMapping:BlockSpawn(pos, ang, model, ply)
+function nzMapping:BlockSpawn(pos, ang, model, flags, ply)
 	local block = ents.Create( "wall_block" )
 	
 	-- Replace with nZombies versions of the same model (if exist) which are grate-based (bullets go through)
@@ -180,7 +220,25 @@ function nzMapping:BlockSpawn(pos, ang, model, ply)
 	block:SetAngles( ang )
 	block:Spawn()
 	block:PhysicsInit( SOLID_VPHYSICS )
+
+	if (nzRound:GetState() != ROUND_CREATE) then
+		block:EnableCustomCollisions(true)
+		block:SetSolidFlags(FSOLID_CUSTOMRAYTEST)
+		block.TestCollision = function (startpos, delta, isbox, extents, mask) 
+			if (nzRound:GetState() == ROUND_CREATE) then 
+				return true 
+			else 
+				return false 
+			end
+		end
+	end
+
 	print(block:GetModel())
+
+	-- REMINDER APPLY FLAGS
+	if flags != nil then
+		nzDoors:CreateLink( block, flags )
+	end
 
 	local phys = block:GetPhysicsObject()
 	if IsValid(phys) then
@@ -195,6 +253,67 @@ function nzMapping:BlockSpawn(pos, ang, model, ply)
 	end
 	return block
 end
+
+-- Nothing to say here, I just hate the fucking Source Engine collisions...
+hook.Add("OnRoundCreative", "UnFuckTheWallBlockCollisions", function()
+	for _,wallblock in pairs(ents.FindByClass("wall_block")) do
+		wallblock:EnableCustomCollisions(false)
+		wallblock:RemoveSolidFlags(FSOLID_CUSTOMRAYTEST)
+		wallblock.TestCollision = nil
+	end
+end)
+
+hook.Add("OnRoundPlay", "ReFuckTheWallBlockCollisions", function()
+	for _,wallblock in pairs(ents.FindByClass("wall_block")) do
+		wallblock:EnableCustomCollisions(true)
+		wallblock:SetSolidFlags(FSOLID_CUSTOMRAYTEST)
+		wallblock.TestCollision = function (startpos, delta, isbox, extents, mask) 
+			if (nzRound:GetState() == ROUND_CREATE) then 
+				return true 
+			else 
+				return false 
+			end
+		end
+	end
+end)
+---------------------------------------------------------------------------
+
+function nzMapping:BlockSpawnZombie(pos, ang, model, flags, ply)
+	local block = ents.Create( "wall_block_zombie" )
+
+	-- Replace with nZombies versions of the same model (if exist) which are grate-based (bullets go through)
+	local model2 = string.Replace(model, "/hunter/plates/", "/nzombies_plates/")
+	if !util.IsValidModel(model2) then
+		model2 = model
+	end
+	print(model2)
+
+	block:SetModel( model2 )
+	block:SetPos( pos )
+	block:SetAngles( ang )
+	block:Spawn()
+	block:PhysicsInit( SOLID_VPHYSICS )
+	print(block:GetModel())
+
+	-- REMINDER APPLY FLAGS
+	if flags != nil then
+		nzDoors:CreateLink( block, flags )
+	end
+
+	local phys = block:GetPhysicsObject()
+	if IsValid(phys) then
+		phys:EnableMotion(false)
+	end
+
+	if ply then
+		undo.Create( "Invisible Zombie Block" )
+			undo.SetPlayer( ply )
+			undo.AddEntity( block )
+		undo.Finish( "Effect (" .. tostring( model ) .. ")" )
+	end
+	return block
+end
+
 
 function nzMapping:BoxSpawn(pos, ang, spawn, ply)
 	local box = ents.Create( "random_box_spawns" )
@@ -356,7 +475,76 @@ function nzMapping:CreateInvisibleWall(vec1, vec2, ply)
 	return wall
 end
 
-function nzMapping:CreateInvisibleDamageWall(vec1, vec2, ply, dmg, delay, radiation, poison, tesla)
+function nzMapping:CreateInvisibleWallZombie(vec1, vec2, ply)
+	local wall = ents.Create( "invis_wall_zombie" )
+	wall:SetPos( vec1 ) -- Later we might make the position the center
+	--wall:SetAngles( ang )
+	--wall:SetMinBound(vec1) -- Just the position for now
+	wall:SetMaxBound(vec2)
+	wall:Spawn()
+	wall:PhysicsInitBox( Vector(0,0,0), vec2 )
+
+	local phys = wall:GetPhysicsObject()
+	if IsValid(phys) then
+		phys:EnableMotion(false)
+	end
+
+	if ply then
+		undo.Create( "Invis Zombie Wall" )
+			undo.SetPlayer( ply )
+			undo.AddEntity( wall )
+		undo.Finish( "Effect (" .. tostring( model ) .. ")" )
+	end
+	return wall
+end
+
+function nzMapping:CreateAntiCheatExclusion(vec1, vec2, ply)
+	local wall = ents.Create( "anticheat_exclude" )
+	wall:SetPos( vec1 ) -- Later we might make the position the center
+	--wall:SetAngles( ang )
+	--wall:SetMinBound(vec1) -- Just the position for now
+	wall:SetMaxBound(vec2)
+	wall:Spawn()
+	wall:PhysicsInitBox( Vector(0,0,0), vec2 )
+
+	local phys = wall:GetPhysicsObject()
+	if IsValid(phys) then
+		phys:EnableMotion(false)
+	end
+
+	if ply then
+		undo.Create( "Anti-Cheat Exclusion" )
+			undo.SetPlayer( ply )
+			undo.AddEntity( wall )
+		undo.Finish( "Effect (" .. tostring( model ) .. ")" )
+	end
+	return wall
+end
+
+function nzMapping:CreateAntiCheatWall(vec1, vec2, ply)
+	local wall = ents.Create( "anticheat_wall" )
+	wall:SetPos( vec1 ) -- Later we might make the position the center
+	--wall:SetAngles( ang )
+	--wall:SetMinBound(vec1) -- Just the position for now
+	wall:SetMaxBound(vec2)
+	wall:Spawn()
+	wall:PhysicsInitBox( Vector(0,0,0), vec2 )
+
+	local phys = wall:GetPhysicsObject()
+	if IsValid(phys) then
+		phys:EnableMotion(false)
+	end
+
+	if ply then
+		undo.Create( "Anti-Cheat Wall" )
+			undo.SetPlayer( ply )
+			undo.AddEntity( wall )
+		undo.Finish( "Effect (" .. tostring( model ) .. ")" )
+	end
+	return wall
+end
+
+function nzMapping:CreateInvisibleDamageWall(vec1, vec2, ply, dmg, delay, radiation, poison, tesla, killzombies)
 	local wall = ents.Create( "invis_damage_wall" )
 	wall:SetPos( vec1 )
 	wall:SetMaxBound(vec2)
@@ -364,6 +552,7 @@ function nzMapping:CreateInvisibleDamageWall(vec1, vec2, ply, dmg, delay, radiat
 	wall:PhysicsInitBox( Vector(0,0,0), vec2 )
 	wall:SetNotSolid(true)
 	wall:SetTrigger(true)
+	wall:SetKillZombies(tobool(killzombies))
 	wall:SetDamage(dmg)
 	wall:SetDelay(delay)
 
@@ -385,12 +574,143 @@ function nzMapping:CreateInvisibleDamageWall(vec1, vec2, ply, dmg, delay, radiat
 	return wall
 end
 
+function nzMapping:Teleporter(data)
+	if !data then return end
+	local tele = ents.Create("nz_teleporter")
+	tele:SetMoveType( MOVETYPE_NONE )
+	tele:SetSolid( SOLID_VPHYSICS )
+--	tele:SetCollisionGroup( COLLISION_GROUP_DEBRIS_TRIGGER )
+
+	if data.pos != nil then
+		tele:SetPos(data.pos)
+	end
+
+	if data.angles != nil then
+		tele:SetAngles(data.angles)
+	end
+
+	if data.flag != nil then
+		tele:SetFlag(data.flag)
+	end
+	
+	if data.destination != nil then
+		tele:SetDestination(data.destination)
+	end
+
+	if data.requiresdoor != nil then
+		tele:SetRequiresDoor(data.requiresdoor)
+	end
+
+	if data.door != nil then
+		tele:SetDoor(data.door)
+	end
+	
+	if data.price != nil then
+		tele:SetPrice(data.price)
+	end
+
+	if data.mdltype != nil then 
+		tele:SetModelType(data.mdltype)
+	end
+
+	if data.mdlcollisions != nil then
+		tele:SetModelCollisions(data.mdlcollisions)
+	end
+
+	if data.visible != nil then
+		tele:SetModelVisible(data.visible)
+	end
+
+	if data.useable != nil then
+		tele:SetUseable(data.useable)
+	end
+
+	if data.gif != nil then
+		tele:SetGifType(data.gif)
+	end
+
+	if data.teleportertime != nil then
+		tele:SetTeleporterTime(data.teleportertime)
+	end
+	
+	if data.cooldown != nil then
+		tele:SetCooldownTime(data.cooldown)
+	end
+
+	if data.tpback != nil then
+		tele:SetTPBack(tobool(data.tpback))
+	end
+
+	if data.tpbackdelay != nil then
+		tele:SetTPBackDelay(data.tpbackdelay)
+	end
+
+	if data.activatestrap != nil then
+		tele:SetActivatesTrap(data.activatestrap)
+	end
+
+	if data.trap != nil then
+		tele:SetTrap(data.trap)
+	end
+
+	-- Compatibility stuff, just so previous NZR config teleporters continue to work
+	-- These will not exist for new configs
+	-- (not really a fan of these)
+	if data.angle != nil then
+		tele:SetAngles(data.angle)
+	end
+	
+	if data.id != nil then
+		tele:SetFlag(tostring(data.id))
+	end
+
+	if data.desti != nil then
+		tele:SetDestination(tostring(data.desti))
+	end
+
+	if data.cd != nil then
+		tele:SetCooldownTime(data.cd)
+	end
+
+	if data.kino != nil then
+		tele:SetTPBack(tobool(data.kino))
+	end
+
+	if data.delay != nil then
+		tele:SetTPBackDelay(data.delay)
+	end
+	--------------------------------------------------------------------------------
+
+	tele:TurnOff()
+	tele:Spawn()
+
+	tele:PhysicsInit( SOLID_VPHYSICS )
+	
+	local phys = tele:GetPhysicsObject()
+	if phys:IsValid() then
+		phys:EnableMotion(false)
+	end
+
+	if data.ply then
+		undo.Create("Teleporter")
+		undo.SetPlayer(data.ply)
+		undo.AddEntity(tele)
+		undo.Finish("Teleporter")
+	end
+
+	return tele
+end
+
 -- Physgun Hooks
 local ghostentities = {
 	["prop_buys"] = true,
 	["wall_block"] = true,
 	["breakable_entry"] = true,
 	["invis_wall"] = true,
+	["nz_trap_zapper"] = true,
+	["nz_workbench_prop"] = true,
+	["buildable_table"] = true,
+	["nz_teleporter"] = true
 	--["wall_buys"] = true,
 }
 local function onPhysgunPickup( ply, ent )
@@ -398,8 +718,10 @@ local function onPhysgunPickup( ply, ent )
 	if ghostentities[class] or ent:ShouldPhysgunNoCollide() then
 		-- Ghost the entity so we can put them in walls.
 		local phys = ent:GetPhysicsObject()
-		phys:EnableCollisions(false)
-		phys:Wake()
+		if (IsValid(phys)) then
+			phys:EnableCollisions(false)
+			phys:Wake()
+		end
 	end
 
 end
@@ -409,9 +731,11 @@ local function onPhysgunDrop( ply, ent )
 	if ghostentities[class] or ent:ShouldPhysgunNoCollide() then
 		-- Unghost the entity so we can put them in walls.
 		local phys = ent:GetPhysicsObject()
-		phys:EnableCollisions(true)
-		phys:EnableMotion(false)
-		phys:Sleep()
+		if (IsValid(phys)) then
+			phys:EnableCollisions(true)
+			phys:EnableMotion(false)
+			phys:Sleep()
+		end
 	end
 
 end

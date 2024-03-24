@@ -76,12 +76,14 @@ nzTools:CreateTool("damagewall", {
 			valz["Dmg"] = data.dmg or 10
 			valz["Delay"] = data.delay or 0.5
 			valz["DmgType"] = data.dmgtype or 1
+			valz["KillZombies"] = data.killzombies == nil and 0 or data.killzombies
 		end
 		
 		function pnl.CompileData()
 			data.dmg = valz["Dmg"]
 			data.delay = valz["Delay"]
 			data.dmgtype = valz["DmgType"]
+			data.killzombies = valz["KillZombies"]
 			
 			return data
 		end
@@ -91,7 +93,7 @@ nzTools:CreateTool("damagewall", {
 		end
 		
 		local chk = vgui.Create("DCheckBoxLabel", pnl)
-		chk:SetPos( 100, 20 )
+		chk:SetPos( 210, 20 )
 		chk:SetText( "Preview Config" )
 		chk:SetTextColor( Color(50,50,50) )
 		chk:SetConVar( "nz_creative_preview" )
@@ -99,8 +101,8 @@ nzTools:CreateTool("damagewall", {
 		chk:SizeToContents()
 		
 		local properties = vgui.Create("DProperties", pnl)
-		properties:SetPos(5, 50)
-		properties:SetSize(290, 100)
+		properties:SetPos(110, 50)
+		properties:SetSize(290, 120)
 		
 		local dmg = properties:CreateRow( "Damage Properties", "Damage" )
 		dmg:Setup( "Int", {min = 1, max = 250} )
@@ -118,6 +120,15 @@ nzTools:CreateTool("damagewall", {
 		dmgtype:AddChoice( "Poison", 2 )
 		dmgtype:AddChoice( "Tesla", 3 )
 		dmgtype.DataChanged = function( _, val ) valz["DmgType"] = val pnl.UpdateData(pnl.CompileData()) end
+
+		local killthezombies = properties:CreateRow("Damage Properties", "Kill Zombies")
+		killthezombies:SetToolTip("Will kill zombies instantly regardless of the damage")
+		killthezombies:Setup("Boolean")
+		killthezombies:SetValue(data.killzombies)
+		killthezombies.DataChanged = function(_, val)
+			valz["KillZombies"] = val
+			pnl.UpdateData(pnl.CompileData())
+		end
 		
 		return pnl
 	end,
@@ -146,5 +157,6 @@ nzTools:CreateTool("damagewall", {
 		dmg = 10,
 		delay = 0.5,
 		dmgtype = 1,
+		killzombies = 0
 	}
 })

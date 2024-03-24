@@ -61,7 +61,8 @@ if SERVER then
 	util.AddNetworkString("nzTimedUse")
 	
 	function meta:StartTimedUse(ent)
-		if IsValid(self.TimedUseEntity) then self:StopTimedUse() end
+		if !self:GetNotDowned() then return end 
+        if IsValid(self.TimedUseEntity) then self:StopTimedUse() end
 		
 		local time = ent:StartTimedUse(self, self, USE_OFF, 0)
 		if time then

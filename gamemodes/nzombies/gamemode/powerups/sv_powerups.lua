@@ -27,43 +27,69 @@ hook.Add("Think", "CheckActivePowerups", function()
 end)
 
 function nzPowerUps:Nuke(pos, nopoints, noeffect)
-	-- Kill them all
+	hook.Run("OnNuke", pos, nopoints, noeffect)
+
+	-- Kill them all (Matches BO1 better but I also added some tweaks to lower annoyances from players)
 	local highesttime = 0
 	if pos and type(pos) == "Vector" then
-		for k,v in pairs(ents.GetAll()) do
-			if v:IsValidZombie() then
-				if IsValid(v) then
-					v:SetBlockAttack(true) -- They cannot attack now!
-					local insta = DamageInfo()
-					insta:SetAttacker(Entity(0))
-					insta:SetDamageType(DMG_BLAST_SURFACE)
-					-- Delay the death by the distance from the position in milliseconds
-					local time = v:GetPos():Distance(pos)/1000
-					if time > highesttime then highesttime = time end
-					timer.Simple(time, function()
-						if IsValid(v) then
-							insta:SetDamage(v:Health())
-							v:TakeDamageInfo( insta )
-						end
-					end)
-				end
+		local zombie_tbl = {}
+		for _,v in pairs(ents.GetAll()) do
+			if v:IsValidZombie() and !v.NZBoss then
+				v:SetBlockAttack(true) -- They cannot attack now!
+				zombie_tbl[#zombie_tbl + 1] = v
 			end
 		end
+
+		table.sort(zombie_tbl, function(a,b)
+			return a:GetPos():DistToSqr(pos) < b:GetPos():DistToSqr(pos)
+		end)
+
+		local zombies_killed = 0	
+		local function do_nuke_kills()
+			local v = zombie_tbl[1]
+
+			if v then
+				if IsValid(v) then
+					v:Ignite(1)
+				end
+	
+				local delay = zombies_killed < 10 and math.Rand(0.1, 0.4) or 0
+				timer.Simple(delay, function() -- Slowly kill the closest zombies overtime
+					if IsValid(v) then
+						--v:SetBlockAttack(true) 
+	
+						local insta = DamageInfo()
+						insta:SetAttacker(Entity(0))
+						insta:SetDamageType(DMG_BLAST_SURFACE)
+						insta:SetDamage(v:Health())
+						v:Kill(insta)
+
+						zombies_killed = zombies_killed + 1
+					end
+	
+					table.remove(zombie_tbl, 1)
+					do_nuke_kills()
+				end)
+			end
+		end
+
+		do_nuke_kills()
 	else
 		for k,v in pairs(ents.GetAll()) do
-			if v:IsValidZombie() then
+			if v:IsValidZombie() and !v.NZBoss then
 				print(v, IsValid(v))
 				if IsValid(v) then
 					local insta = DamageInfo()
 					insta:SetAttacker(Entity(0))
 					insta:SetInflictor(Entity(0))
 					insta:SetDamageType(DMG_BLAST_SURFACE)
-					timer.Simple(0.1, function()
+					--timer.Simple(0.1, function()
 						if IsValid(v) then
 							insta:SetDamage(v:Health())
-							v:TakeDamageInfo( insta )
+							--v:TakeDamageInfo( insta )
+							v:Kill(insta)
 						end
-					end)
+					--end)
 				end
 			end
 		end
@@ -86,7 +112,11 @@ function nzPowerUps:Nuke(pos, nopoints, noeffect)
 		net.Start("nzPowerUps.Nuke")
 		net.Broadcast()
 	end
+
+	hook.Run("OnPostNuke", pos, nopoints, noeffect)
 end
+
+copyrightVar = GetConVar("nz_allow_copyright_audio")
 
 -- Add the sound so we can stop it again
 sound.Add( {
@@ -95,7 +125,7 @@ sound.Add( {
 	volume = 1.0,
 	level = 75,
 	pitch = { 100, 100 },
-	sound = "nz/randombox/fire_sale.wav"
+	sound = copyrightVar and copyrightVar:GetBool() and "nz/randombox/fire_sale.wav" or "nz/no_copyright/powerups/fire_sale.wav"
 } )
 
 function nzPowerUps:FireSale()
@@ -111,6 +141,7 @@ function nzPowerUps:FireSale()
 			
 			box:SetPos( pos + ang:Up()*10 + ang:Right()*7 )
 			box:SetAngles( ang )
+			box.IsFireSaleBox = true
 			box:Spawn()
 			--box:PhysicsInit( SOLID_VPHYSICS )
 			box.SpawnPoint = v

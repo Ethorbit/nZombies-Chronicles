@@ -15,35 +15,36 @@ function EFFECT:Init( data )
 	if self.Size <= 0 then self.Size = 1 end
 	self.MaxArcs = 2
 	self.Parent = data:GetEntity()
-	--self:SetParent(self.Parent)
-	self.Frequency = data:GetMagnitude() and data:GetMagnitude()/10 or 0.01
-	self.Pos = self.Parent:WorldSpaceCenter()
-	local scale = data:GetScale()
-	
-	if IsValid(self.Parent.LightningAuraEffect) then
-		self.Parent.LightningAuraEffect.KILL = true
-	end
-	
-	if scale then
-		if scale >= 0 then
-			self.Parent.LightningAura = CurTime() + scale
-		else
-			self.Parent.LightningAura = true
+	if (IsValid(self.Parent)) then
+		--self:SetParent(self.Parent)
+		self.Frequency = data:GetMagnitude() and data:GetMagnitude()/10 or 0.01
+		self.Pos = self.Parent:WorldSpaceCenter()
+		local scale = data:GetScale()
+		
+		if IsValid(self.Parent.LightningAuraEffect) then
+			self.Parent.LightningAuraEffect.KILL = true
 		end
-	else
-		self.Parent.LightningAura = CurTime() + 10 -- Default time for this effect
+		
+		if scale then
+			if scale >= 0 then
+				self.Parent.LightningAura = CurTime() + scale
+			else
+				self.Parent.LightningAura = true
+			end
+		else
+			self.Parent.LightningAura = CurTime() + 10 -- Default time for this effect
+		end
+
+		self.Alpha = 255
+		self.Life = 0
+		self.NextArc = 0
+		self.Arcs = {}
+		self.Queue = 1
+		
+		self.Parent.LightningAuraEffect = self
+
+		self:SetRenderBounds( Vector(0,0,0), Vector(0,0,0), Vector(50,50,50) )
 	end
-
-	self.Alpha = 255
-	self.Life = 0
-	self.NextArc = 0
-	self.Arcs = {}
-	self.Queue = 1
-	
-	self.Parent.LightningAuraEffect = self
-
-	self:SetRenderBounds( Vector(0,0,0), Vector(0,0,0), Vector(50,50,50) )
-
 end
 
 --[[---------------------------------------------------------
@@ -58,10 +59,10 @@ function EFFECT:Think()
 		self:SetPos(self.Pos)
 	end
 
-	self.Life = self.Life + FrameTime()
+	if (self.Life) then self.Life = self.Life + FrameTime() end
 	--self.Alpha = 255 * ( 1 - self.Life )
 
-	if self.NextArc <= self.Life and self.Pos then
+	if self.NextArc and self.Life and self.NextArc <= self.Life and self.Pos then
 
 		local size = #self.Arcs
 		--add a arc to the array
@@ -155,11 +156,11 @@ function EFFECT:Render()
 	end
 	
 	render.SetMaterial( self.MatGlow1 )
-	render.DrawSprite( self.Pos, math.random(40,120)*self.Size, math.random(40,120)*self.Size, Color(math.random(50,150),math.random(100,200),255,math.random(100,200)))
+	render.DrawSprite( self.Pos, self.Size, math.random(40,120)*self.Size, Color(math.random(50,150),math.random(100,200),255,math.random(100,200)))
 	
 	if math.random(0,10) == 0 then
 		render.SetMaterial( self.MatGlow2 )
-		render.DrawSprite( self.Pos, math.random(20,60)*self.Size, math.random(40,120)*self.Size, Color(math.random(50,150),math.random(100,200),255,math.random(100,200)))
+		render.DrawSprite( self.Pos, self.Size, math.random(40,120)*self.Size, Color(math.random(50,150),math.random(100,200),255,math.random(100,200)))
 	end
 	
 	render.SetMaterial( self.MatGlowCenter )

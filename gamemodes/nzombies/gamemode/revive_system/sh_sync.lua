@@ -34,6 +34,13 @@ if SERVER then
 	end
 
 	function nzRevive:SendPlayerBeingRevived(ply, revivor, receiver)
+		if (!IsValid(revivor)) then
+			net.Start("NZWhosWhoReviving")
+			net.WriteEntity(revivor)
+			net.WriteBool(false)
+			net.Broadcast()
+		end
+			
 		net.Start( "nzRevivePlayerBeingRevived" )
 			net.WriteInt(ply:EntIndex(), 13)
 			if IsValid(revivor) then
@@ -116,16 +123,17 @@ if CLIENT then
 
 	local function ReceivePlayerKilled()
 		local id = net.ReadInt(13)
-		
-		local revivor = nzRevive.Players[id].RevivePlayer
-		if IsValid(revivor) then revivor.Reviving = nil end
-		
-		nzRevive.Players[id] = nil
-		local ply = Entity(id)
-		if IsValid(ply) and ply:IsPlayer() then
-			--ply:AnimResetGestureSlot(GESTURE_SLOT_CUSTOM)
-			if ply == LocalPlayer() then nzRevive:ResetColorFade() end
-			nzRevive:DownedHeadsUp(ply, "has died!")
+		if (nzRevive.Players and nzRevive.Players[id]) then
+			local revivor = nzRevive.Players[id].RevivePlayer
+			if IsValid(revivor) then revivor.Reviving = nil end
+			
+			nzRevive.Players[id] = nil
+			local ply = Entity(id)
+			if IsValid(ply) and ply:IsPlayer() then
+				--ply:AnimResetGestureSlot(GESTURE_SLOT_CUSTOM)
+				if ply == LocalPlayer() then nzRevive:ResetColorFade() end
+				nzRevive:DownedHeadsUp(ply, "has died!")
+			end
 		end
 	end
 

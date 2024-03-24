@@ -39,45 +39,47 @@ function GetPriorityWeaponSlot(ply)
 end
 
 local function OnWeaponAdded( weapon )
-
+	
 	if !weapon:IsSpecial() then
 		weapon.Weight = 10000
 		-- 0 seconds timer for the next tick, where the weapon's owner will be valid
 		timer.Simple(0, function()
-			local ply = weapon:GetOwner()
-			if !nzRound:InState( ROUND_CREATE ) then
-				local slot, exists = GetPriorityWeaponSlot(ply)
-				if IsValid(exists) then ply:StripWeapon( exists:GetClass() ) end
+			if (IsValid(weapon) and weapon:IsWeapon()) then
+				local ply = weapon:GetOwner()
+				if !nzRound:InState( ROUND_CREATE ) then
+					local slot, exists = GetPriorityWeaponSlot(ply)
+					if IsValid(exists) then ply:StripWeapon( exists:GetClass() ) end
+					
+					weapon:SetNWInt( "SwitchSlot", slot )
+					local oldammo = weapon.Primary.Ammo
+					local newammo = weapon:GetPrimaryAmmoType() -- Get the ammo ID used for this weapon slot
+					weapon.Primary.Ammo = game.GetAmmoName(newammo) -- Set ammo type to the ammo type designated by this slot!
+					weapon.Primary.OldAmmo = oldammo -- Save the old ammo (just in case)
+					--weapon:GiveMaxAmmo() We can't do this! PaP should NOT give ammo when rerolling!
+					
+					weapon.Weight = 10000
+					ply:SelectWeapon(weapon:GetClass())
+					timer.Simple(0, function()
+						if IsValid(ply) then
+							if ply:HasPerk("speed") then
+								weapon:ApplyNZModifier("speed")
+							end
+							if ply:HasPerk("dtap") or ply:HasPerk("dtap2") then
+								weapon:ApplyNZModifier("dtap")
+							end
+							if !weapon.NoSpawnAmmo then
+								weapon:GiveMaxAmmo()
+							end
+							ply:SelectWeapon(weapon:GetClass())
+						end
+						weapon.Weight = 0
+					end)
+				end
+				if weapon.NearWallEnabled then weapon.NearWallEnabled = false end
+				if weapon:IsFAS2() then weapon.NoNearWall = true end
 				
-				weapon:SetNWInt( "SwitchSlot", slot )
-				local oldammo = weapon.Primary.Ammo
-				local newammo = weapon:GetPrimaryAmmoType() -- Get the ammo ID used for this weapon slot
-				weapon.Primary.Ammo = game.GetAmmoName(newammo) -- Set ammo type to the ammo type designated by this slot!
-				weapon.Primary.OldAmmo = oldammo -- Save the old ammo (just in case)
-				--weapon:GiveMaxAmmo() We can't do this! PaP should NOT give ammo when rerolling!
-				
-				weapon.Weight = 10000
-				ply:SelectWeapon(weapon:GetClass())
-				timer.Simple(0, function()
-					if IsValid(ply) then
-						if ply:HasPerk("speed") then
-							weapon:ApplyNZModifier("speed")
-						end
-						if ply:HasPerk("dtap") or ply:HasPerk("dtap2") then
-							weapon:ApplyNZModifier("dtap")
-						end
-						if !weapon.NoSpawnAmmo then
-							weapon:GiveMaxAmmo()
-						end
-						ply:SelectWeapon(weapon:GetClass())
-					end
-					weapon.Weight = 0
-				end)
+				weapon:ApplyNZModifier("equip")
 			end
-			if weapon.NearWallEnabled then weapon.NearWallEnabled = false end
-			if weapon:IsFAS2() then weapon.NoNearWall = true end
-			
-			weapon:ApplyNZModifier("equip")
 		end)
 	end
 	

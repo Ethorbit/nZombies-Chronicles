@@ -54,16 +54,22 @@ function ENT:PhysicsCollide(data, physobj)
 
 		LastSpeed = math.max( NewVelocity:Length(), LastSpeed )
 
-		local TargetVelocity = NewVelocity * LastSpeed * 0.75
+		local TargetVelocity = NewVelocity * LastSpeed * 0.35
 
 		physobj:SetVelocity( TargetVelocity )
 		
-		if vel < 100 then
+		--if vel < 1000 then
+
+		timer.Simple(0.5, function()
+			if (!IsValid(self) or self.gonnablow) then return end
+			self.gonnablow = true
 			self:SetMoveType(MOVETYPE_NONE)
 			self:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
 			self:ResetSequence("anim_play")
 			self:SetExplosionTimer(8)
-		end
+		end)
+
+		--end
 	end
 end
 

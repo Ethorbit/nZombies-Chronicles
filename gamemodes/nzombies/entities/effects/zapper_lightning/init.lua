@@ -13,15 +13,15 @@ function EFFECT:Init( data )
 	self.EndPos = data:GetOrigin()
 	self.Duration = data:GetMagnitude() or 10
 
-	self.Flash = DynamicLight( LocalPlayer():EntIndex() )
+	self.Flash = DynamicLight( LocalPlayer():EntIndex(),true )
 
 	self.Flash.pos = self.StartPos
 	self.Flash.r = 255
 	self.Flash.g = 255
 	self.Flash.b = 255
 	self.Flash.brightness = 1
-	self.Flash.Decay = 200
-	self.Flash.Size = 200
+	self.Flash.Decay = 300
+	self.Flash.Size = 300
 	self.Flash.style = 6
 	self.Flash.DieTime = CurTime() + self.Duration
 

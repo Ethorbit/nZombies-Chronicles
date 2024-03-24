@@ -37,7 +37,7 @@ nzTools:CreateTool("rbox", {
 
 		local DProperties = vgui.Create( "DProperties", frame )
 		DProperties:SetSize( 280, 180 )
-		DProperties:SetPos( 10, 10 )
+		DProperties:SetPos( 110, 20 )
 		
 		function DProperties.CompileData()
 			data.PossibleSpawn = valz["Row1"]

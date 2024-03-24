@@ -8,6 +8,8 @@ ENT.Contact			= "Don't"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 	self:NetworkVar( "String", 0, "WepClass" )
 	self:NetworkVar( "String", 1, "Price" )
@@ -20,7 +22,8 @@ local normalscale = Vector(0.01, 1.5, 1.5) 	-- based on the bool self:GetFlipped
 
 CreateClientConVar("nz_outlinedetail", "4", true) -- Controls the outline creation
 
-chalkmaterial = "chalk.png" --= Material("chalk.png", "unlitgeneric smooth")
+--chalkmaterial = Material("chalk.png", "unlitgeneric smooth")
+chalkmaterial = Material("chalk.png")
 
 function ENT:Initialize()
 	if SERVER then
@@ -82,7 +85,9 @@ function ENT:RecalculateModelOutlines()
 		local offset = curang:Up()*0.5 + curang:Forward()*-0.5 --Vector(0,-0.5,0.5)
 		self.Chalk1:SetPos(curpos + offset)
 		self.Chalk1:SetAngles(ang)
-		self.Chalk1:SetMaterial(chalkmaterial)
+		if (!chalkmaterial:IsError()) then
+			self.Chalk1:SetMaterial(chalkmaterial)
+		end
 		--self.Chalk:SetModelScale(1.7)
 			
 		local mat = Matrix()
@@ -98,7 +103,9 @@ function ENT:RecalculateModelOutlines()
 		offset = curang:Up()*-0.5 + curang:Forward()*0.5
 		self.Chalk2:SetPos(curpos + offset)
 		self.Chalk2:SetAngles(ang)
-		self.Chalk2:SetMaterial(chalkmaterial)
+		if (!chalkmaterial:IsError()) then
+			self.Chalk2:SetMaterial(chalkmaterial)
+		end
 		--self.Chalk:SetModelScale(1.7)
 			
 		mat = Matrix()
@@ -114,7 +121,9 @@ function ENT:RecalculateModelOutlines()
 		offset = curang:Up()*0.5 + curang:Forward()*0.5
 		self.Chalk3:SetPos(curpos + offset)
 		self.Chalk3:SetAngles(ang)
-		self.Chalk3:SetMaterial(chalkmaterial)
+		if (!chalkmaterial:IsError()) then
+			self.Chalk3:SetMaterial(chalkmaterial)
+		end
 		--self.Chalk:SetModelScale(1.7)
 			
 		mat = Matrix()
@@ -130,7 +139,9 @@ function ENT:RecalculateModelOutlines()
 		offset = curang:Up()*-0.5 + curang:Forward()*-0.5
 		self.Chalk4:SetPos(curpos + offset)
 		self.Chalk4:SetAngles(ang)
-		self.Chalk4:SetMaterial(chalkmaterial)
+		if (!chalkmaterial:IsError()) then
+			self.Chalk4:SetMaterial(chalkmaterial)
+		end
 		--self.Chalk:SetModelScale(1.7)
 			
 		mat = Matrix()
@@ -145,7 +156,9 @@ function ENT:RecalculateModelOutlines()
 		self.ChalkCenter = ClientsideModel(model)
 		self.ChalkCenter:SetPos(curpos)
 		self.ChalkCenter:SetAngles(ang)
-		self.ChalkCenter:SetMaterial(chalkmaterial)
+		if (!chalkmaterial:IsError()) then
+			self.ChalkCenter:SetMaterial(chalkmaterial)
+		end
 			
 		mat = Matrix()
 		mat:Scale( self.Flipped and flipscale or normalscale )
@@ -205,6 +218,8 @@ if SERVER then
 	end
 
 	function ENT:Use( activator, caller )
+		if (isnumber(activator.nextUseTime) and CurTime() < activator.nextUseTime) then return end
+		activator.nextUseTime = CurTime() + 1
 		local price = self.Price
 		
 		local wep
@@ -219,22 +234,74 @@ if SERVER then
 		local ammo_price_pap = 4500
 		local curr_ammo = activator:GetAmmoCount( ammo_type )
 		local give_ammo = nzWeps:CalculateMaxAmmo(self.WeaponGive) - curr_ammo
+
+		if (self:GetWepClass() == "nz_grenade") then 
+			local nade = activator:GetItem("grenade")
+			if (activator:HasPerk("widowswine") and (!nade or nade and nade.price < 4000)) then
+				ammo_price = 4000
+			elseif (nade and ammo_price < nade.price) then
+				ammo_price = nade.price
+			end
+		end
 		
 		--print(ammo_type, curr_ammo, give_ammo)
 
-		if !activator:HasWeapon( self.WeaponGive ) then
+		local replacementWep = nil
+		local hasReplacement = false
+		for _,v in pairs(nzWeps:GetAllReplacements(self.WeaponGive)) do
+			if isstring(v.ClassName) and activator:HasWeapon(v.ClassName) then
+				hasReplacement = true
+				replacementWep = activator:GetWeapon(v.ClassName)
+				give_ammo = nzWeps:CalculateMaxAmmo(v.ClassName) - curr_ammo
+			end
+		end
+
+		if !activator:HasWeapon( self.WeaponGive ) and !hasReplacement then
 			activator:Buy(price, self, function()
-				local wep = activator:Give(self.WeaponGive)
-				timer.Simple(0, function() if IsValid(wep) then wep:GiveMaxAmmo() end end)
+				if (util.NetworkStringToID("VManip_SimplePlay") != 0) then
+					net.Start("VManip_SimplePlay")
+					net.WriteString("use")
+					net.Send(activator)
+				end
+
+				if (self.WeaponGive == "nz_grenade") then   -- This can mess up grenade pricing, don't give them it
+					local wep = activator:GetItem("grenade")
+					if (istable(wep)) then
+						activator:SetAmmo(wep.ammo, "nz_grenade")
+					end
+
+					activator:TakePoints(ammo_price)
+					return false
+				else
+					local wep = activator:Give(self.WeaponGive)
+					if (wep:GetSpecialCategory() == "specialgrenade") then
+						activator:SetAmmo(3, "nz_specialgrenade")
+					end
+	
+					timer.Simple(0, function() if IsValid(wep) then wep:GiveMaxAmmo() end end)
+				end
+
 				self:SetBought(true)
 				return true
 			end)
 		elseif string.lower(ammo_type) != "none" and ammo_type != -1 then
+			print("Refilling ammo")
+
 			local wep = activator:GetWeapon(self.WeaponGive)
-			if wep:HasNZModifier("pap") then
+			if (!IsValid(wep) and IsValid(replacementWep)) then
+				wep = replacementWep
+			end
+
+			if replacementWep != nil or wep:HasNZModifier("pap") then
 				activator:Buy(ammo_price_pap, self, function()
 					if give_ammo != 0 then
 						wep:GiveMaxAmmo()
+						if (util.NetworkStringToID("VManip_SimplePlay") != 0) then
+							net.Start("VManip_SimplePlay")
+							net.WriteString("use")
+							net.Send(activator)
+						end
+
 						return true
 					else
 						print("Max Clip!")
@@ -245,6 +312,13 @@ if SERVER then
 				activator:Buy(ammo_price, self, function()
 					if give_ammo != 0 then
 						wep:GiveMaxAmmo()
+
+						if (util.NetworkStringToID("VManip_SimplePlay") != 0) then
+							net.Start("VManip_SimplePlay")
+							net.WriteString("use")
+							net.Send(activator)
+						end
+
 						return true
 					else
 						print("Max Clip!")

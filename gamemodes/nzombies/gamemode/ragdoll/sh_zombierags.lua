@@ -36,12 +36,7 @@ local function cleanrag(ent, ragdoll, time)
 		end
 	end)
 	]]--
-    --SafeRemoveEntityDelayed( ragdoll, dTime + 2.5 )
-    timer.Simple( dTime + 2.5, function()
-        if ragdoll ~= NULL then
-            SafeRemoveEntity( ragdoll )
-        end
-    end)
+	SafeRemoveEntityDelayed( ragdoll, dTime + 2.5 )
 end
 
 if CLIENT then

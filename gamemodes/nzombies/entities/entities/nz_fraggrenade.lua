@@ -1,6 +1,6 @@
 ENT.Type = "anim"
 ENT.Base = "base_entity"
-ENT.PrintName = "Frag Grenade"
+ENT.PrintName = "Grenade"
 ENT.Author = "Zet0r"
 
 ENT.Spawnable = false
@@ -12,7 +12,7 @@ end
 
 function ENT:Initialize()
 	if SERVER then
-		self:SetModel("models/weapons/w_grenade.mdl")
+		self:SetModel("models/weapons/w_eq_fraggrenade.mdl")
 		self:PhysicsInit(SOLID_VPHYSICS)
 		self:SetMoveType(MOVETYPE_VPHYSICS)
 		self:SetCollisionGroup(COLLISION_GROUP_NONE)

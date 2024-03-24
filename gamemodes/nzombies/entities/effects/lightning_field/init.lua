@@ -10,39 +10,39 @@ EFFECT.MatGlowCenter = Material( "sprites/glow04_noz" )
    Init( data table )
 -----------------------------------------------------------]]
 function EFFECT:Init( data )
-
 	self.Size = data:GetRadius() or 1
 	self.MaxArcs = 2
-	self.Parent = data:GetEntity()
-	self.Frequency = data:GetMagnitude()/10 or 0.01
-	self.Pos = self.Parent:GetPos() + self.Parent:OBBCenter()
-	self.OBBMax = self.Parent:OBBMaxs()
-	self.OBBMin = self.Parent:OBBMins()
-	self.Angle = self.Parent:GetAngles()
+	if (data and IsValid(data:GetEntity())) then
+		self.Parent = data:GetEntity()
+		self.Frequency = data:GetMagnitude()/10 or 0.01
+		self.Pos = self.Parent:GetPos() + self.Parent:OBBCenter()
+		self.OBBMax = self.Parent:OBBMaxs()
+		self.OBBMin = self.Parent:OBBMins()
+		self.Angle = self.Parent:GetAngles()
 	
-	if self.Parent.LightningAura then
-		if data:GetScale() then
-			self.Parent.LightningAura = CurTime() + data:GetScale()
+		if self.Parent.LightningAura then
+			if data:GetScale() then
+				self.Parent.LightningAura = CurTime() + data:GetScale()
+			else
+				self.Parent.LightningAura = CurTime() + 10 -- Default time for this effect
+			end
+			self.KILL = true
 		else
-			self.Parent.LightningAura = CurTime() + 10 -- Default time for this effect
-		end
-		self.KILL = true
-	else
-		if data:GetScale() then
-			self.Parent.LightningAura = CurTime() + data:GetScale()
-		else
-			self.Parent.LightningAura = CurTime() + 10 -- Default time for this effect
-		end
+			if data:GetScale() then
+				self.Parent.LightningAura = CurTime() + data:GetScale()
+			else
+				self.Parent.LightningAura = CurTime() + 10 -- Default time for this effect
+			end
 
-		self.Alpha = 255
-		self.Life = 0
-		self.NextArc = 0
-		self.Arcs = {}
-		self.Queue = 1
+			self.Alpha = 255
+			self.Life = 0
+			self.NextArc = 0
+			self.Arcs = {}
+			self.Queue = 1
 
-		self:SetRenderBoundsWS( self.Pos, self.Pos, Vector(100,100,100) )
+			self:SetRenderBoundsWS( self.Pos, self.Pos, Vector(100,100,100) )
+		end
 	end
-
 end
 
 --[[---------------------------------------------------------
@@ -56,10 +56,13 @@ function EFFECT:Think()
 		--self.Pos = self.Parent:GetPos()
 	end
 
-	self.Life = self.Life + FrameTime()
+	if (isnumber(self.Life)) then
+		self.Life = self.Life + FrameTime()
+	end
+
 	--self.Alpha = 255 * ( 1 - self.Life )
 
-	if self.NextArc <= self.Life then
+	if IsValid(self) and isnumber(self.NextArc) and isnumber(self.Life) and self.NextArc <= self.Life then
 
 		local size = #self.Arcs
 		--add a arc to the array
@@ -147,8 +150,9 @@ end
 -----------------------------------------------------------]]
 function EFFECT:Render()
 
-	if ( self.KILL or self.Alpha < 1 ) then return end
-
+	if ( self.KILL or self.Alpha and self.Alpha < 1 ) then return end
+	if (!self.Arcs) then return end
+	
 	render.SetMaterial( self.MatCenter )
 
 	for _, arc in pairs(self.Arcs) do

@@ -16,6 +16,8 @@ ENT.Category			= "Editors"
 
 ENT.NZOnlyVisibleInCreative = true
 
+ENT.NZEntity = true
+
 function ENT:Initialize()
 
 	--BaseClass.Initialize( self )
@@ -43,7 +45,7 @@ function ENT:Initialize()
 		self:CreateFire()
 
 		self:DrawShadow( false )
-		self:SetCollisionGroup( COLLISION_GROUP_WEAPON )
+		self:SetCollisionGroup( COLLISION_GROUP_DEBRIS )
 
 	else
 

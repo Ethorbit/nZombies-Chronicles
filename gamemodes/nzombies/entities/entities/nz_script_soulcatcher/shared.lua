@@ -8,6 +8,8 @@ ENT.Contact			= "youtube.com/Zet0r"
 ENT.Purpose			= "Scriptable soul catcher for nZombies"
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:Initialize()
 	if SERVER then
 		self:SetMoveType( MOVETYPE_NONE )

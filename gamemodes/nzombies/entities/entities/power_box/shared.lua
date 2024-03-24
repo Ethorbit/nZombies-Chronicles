@@ -8,6 +8,8 @@ ENT.Contact			= ""
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 
 	self:NetworkVar( "Bool", 0, "Switch" )
@@ -44,6 +46,12 @@ function ENT:Use( activator )
 		self:SetSwitch(true)
 		self.Switched = 0
 		nzElec:Activate()
+
+		if (util.NetworkStringToID("VManip_SimplePlay") != 0) then
+			net.Start("VManip_SimplePlay")
+			net.WriteString("use")
+			net.Send(activator)
+		end
 	end
 
 end

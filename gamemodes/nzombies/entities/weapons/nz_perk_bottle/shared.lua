@@ -67,21 +67,25 @@ function SWEP:Initialize()
 		if self.Owner == LocalPlayer() then
 			local vm = LocalPlayer():GetViewModel()
 			print(self:GetPerk())
-			local mat = nzPerks:Get(self:GetPerk()).material --perk_materials[self:GetPerk()]
-			oldmat = vm:GetMaterial() or ""
-			vm:SetMaterial(mat)
+
+			if (self.GetPerk and nzPerks:Get(self:GetPerk()) and nzPerks:Get(self:GetPerk()).material) then
+				local mat = nzPerks:Get(self:GetPerk()).material --perk_materials[self:GetPerk()]
+				self:SetMaterial(mat)
+				
+				oldmat = vm:GetMaterial() or ""
+				vm:SetMaterial(mat)
+
+				self.Think = function()
+					vm:SetSubMaterial(0, mat)
+					vm:SetMaterial(mat)
+				end
+			end
 		end
 	end
 end
 
 function SWEP:Equip( owner )
-	
-	timer.Simple(3.2,function()
-		owner:SetUsingSpecialWeapon(false)
-		owner:EquipPreviousWeapon()
-	end)
-	owner:SetActiveWeapon("nz_perk_bottle")
-	
+	owner:SetActiveWeapon(owner:GetWeapon("nz_perk_bottle"))	
 end
 
 function SWEP:Deploy()
@@ -133,17 +137,19 @@ function PerkBlurScreen()
 	hook.Add( "RenderScreenspaceEffects", "PaintPerkBlur", blurhook )
 	timer.Simple(0.7,function() hook.Remove( "RenderScreenspaceEffects", "PaintPerkBlur" ) end)
 end
-net.Receive("perk_blur_screen", PerkBlurScreen)
+if CLIENT then -- Added by Ethorbit since this is clearly clientside visual FX
+	net.Receive("perk_blur_screen", PerkBlurScreen)
+end
 
 function SWEP:Holster()
-	return false
+	--return false
 end
 
 function SWEP:PrimaryAttack()
 end
 
 function SWEP:OnRemove()
-
+	self.Think = nil
 	if CLIENT then
 		local ply = LocalPlayer()
 		if IsValid(ply) and self.Owner == ply then
@@ -151,7 +157,7 @@ function SWEP:OnRemove()
 			vm:SetMaterial(oldmat)
 		end
 	end
-	
+
 	hook.Remove( "RenderScreenspaceEffects", "PaintPerkBlur" )
 
 end

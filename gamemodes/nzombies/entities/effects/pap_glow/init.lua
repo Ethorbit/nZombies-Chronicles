@@ -12,19 +12,20 @@ EFFECT.MatGlowCenter = Material( "sprites/glow04_noz" )
    Init( data table )
 -----------------------------------------------------------]]
 function EFFECT:Init( data )
-
 	self.Parent = data:GetEntity()
-	self.Pos = self.Parent:GetPos()
-	self.Offset = data:GetOrigin() - self.Pos
-	self.DieTime = 1
-	self.Duration = data:GetMagnitude() or 2
-	self.Count = self.Duration * 40
-	self.Radius = 30
+	if (IsValid(self.Parent)) then
+		self.Pos = self.Parent:GetPos()
+		self.Offset = data:GetOrigin() - self.Pos
+		self.DieTime = 1
+		self.Duration = data:GetMagnitude() or 2
+		self.Count = self.Duration * 40
+		self.Radius = 30
 
-	self.Alpha = 1
-	self.Life = 0
+		self.Alpha = 1
+		self.Life = 0
 
-	self:SetRenderBoundsWS( self.Pos, self.Pos, Vector(100,100,100) )
+		self:SetRenderBoundsWS( self.Pos, self.Pos, Vector(100,100,100) )
+	end
 
 	--sound.Play("nz/hellhound/spawn/prespawn.wav", self.Pos, 100, 100, 1)
 
@@ -39,12 +40,14 @@ function EFFECT:Think()
 		self.Pos = self.Parent:GetPos() + self.Offset
 	end
 
-	self.Life = self.Life + FrameTime()
-	if self.Life > self.Duration then
-		self.Alpha = 1 - (self.Life - self.Duration)/self.DieTime
-	end
+	if self.Life then
+		self.Life = self.Life + FrameTime()
+		if self.Life > self.Duration then
+			self.Alpha = 1 - (self.Life - self.Duration)/self.DieTime
+		end
 
-	return ( self.Life < self.Duration + self.DieTime )
+		return ( self.Life < self.Duration + self.DieTime )
+	end
 end
 
 --[[---------------------------------------------------------

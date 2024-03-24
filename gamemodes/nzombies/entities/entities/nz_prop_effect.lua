@@ -53,7 +53,7 @@ function ENT:Initialize()
 		end
 
 		self:DrawShadow( false )
-		self:SetCollisionGroup( COLLISION_GROUP_WEAPON )
+		self:SetCollisionGroup( COLLISION_GROUP_DEBRIS )
 
 	else
 

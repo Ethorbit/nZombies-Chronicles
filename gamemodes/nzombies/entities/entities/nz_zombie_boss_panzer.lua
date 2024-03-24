@@ -1,13 +1,52 @@
 AddCSLuaFile()
 
-ENT.Base = "nz_zombiebase"
+nzRound:AddBossType("Panzer", "nz_zombie_boss_panzer", {
+	specialspawn = true,
+	initfunc = function()
+		--nzRound:SetNextBossRound(math.random(6,8)) -- Randomly spawn in rounds 6-8	
+        nzRound:SetNextBossRound(nzRound:GetNumber() + math.random(10, 12))
+
+		-- We can't have boss round on dog round
+		if (nzRound:GetNextSpecialRound() == nzRound:GetNextBossRound()) then
+			nzRound:SetNextBossRound(nzRound:GetNextBossRound() + 1)
+		end
+	end,
+	spawnfunc = function(panzer)
+		local hp = nzRound:GetPanzerHealth() or 500
+		panzer:SetHealth(hp)
+		panzer:SetMaxHealth(hp)
+
+		BroadcastLua("surface.PlaySound('nzr/effects/panzeralarm.mp3')")
+	end,
+	deathfunc = function(panzer, killer, dmginfo, hitgroup)
+		nzRound:SetNextBossRound(nzRound:GetNumber() + math.random(3,5)) -- Delay further boss spawning by 3-5 rounds after its death
+		--nzRound:SetNextBossRound(nzRound:GetNumber() + 6)
+
+		if IsValid(attacker) and attacker:IsPlayer() and attacker:GetNotDowned() then
+			attacker:GivePoints(500) -- Give killer 500 points if not downed
+		end
+
+		-- We can't have boss round on dog round
+		if (nzRound:GetNextSpecialRound() == nzRound:GetNextBossRound()) then
+			nzRound:SetNextBossRound(nzRound:GetNextBossRound() + 1)
+		end
+	end
+}) -- No onhit function, we don't give points on hit for this guy
+
+ENT.Base = "nz_bossbase"
+
+DEFINE_BASECLASS(ENT.Base)
+
 ENT.PrintName = "Panzersoldat"
 ENT.Category = "Brainz"
-ENT.Author = "Zet0r"
+ENT.Author = "Zet0r, Ethorbit"
 
 ENT.Models = { "models/nz_zombie/zombie_panzersoldat.mdl" }
+-- We do not randomize these things
+ENT.Bodygroups = {}
+ENT.Skins = {}
 
-ENT.AttackRange = 80
+ENT.AttackRange = 120
 ENT.DamageLow = 90
 ENT.DamageHigh = 180
 
@@ -40,6 +79,8 @@ ENT.WalkSounds = {
 	"nz/panzer/ambient/mech_ambi_02.wav",
 }
 
+ENT.PainSounds = nil -- We don't have any..
+
 ENT.ActStages = {
 	[1] = {
 		act = ACT_WALK,
@@ -59,75 +100,20 @@ ENT.ActStages = {
 	},
 }
 
--- We overwrite the Init function because we do not change bodygroups randomly!
-function ENT:Initialize()
-
-	self:Precache()
-
-	self:SetModel( self.Models[math.random( #self.Models )] )
-
-	self:SetJumping( false )
-	self:SetLastLand( CurTime() + 1 ) --prevent jumping after spawn
-	self:SetLastTargetCheck( CurTime() )
-	self:SetLastTargetChange( CurTime() )
-
-	--sounds
-	self:SetNextMoanSound( CurTime() + 1 )
-
-	--stuck prevetion
-	self:SetLastPush( CurTime() )
-	self:SetLastPostionSave( CurTime() )
-	self:SetStuckAt( self:GetPos() )
-	self:SetStuckCounter( 0 )
-
-	self:SetAttacking( false )
-	self:SetLastAttack( CurTime() )
-	self:SetAttackRange( self.AttackRange )
-	self:SetTargetCheckRange(0) -- 0 for no distance restriction (infinite)
-
-	--target ignore
-	self:ResetIgnores()
-
-	self:SetHealth( 75 ) --fallback
-
-	self:SetRunSpeed( self.RunSpeed ) --fallback
-	self:SetWalkSpeed( self.WalkSpeed ) --fallback
-
-	self:SetCollisionBounds(Vector(-16,-16, 0), Vector(16, 16, 70))
-
-	self:SetActStage(0)
-	self:SetSpecialAnimation(false)
-
-	self:StatsInitialize()
-	self:SpecialInit()
-	
-	-- Fallback for buggy tool
-	if !self:GetRunSpeed() then self:SetRunSpeed(150) end
-
+function ENT:OnInitialize()
 	if SERVER then
-		self.loco:SetDeathDropHeight( self.DeathDropHeight )
-		self.loco:SetDesiredSpeed( self:GetRunSpeed() )
-		self.loco:SetAcceleration( self.Acceleration )
-		self.loco:SetJumpHeight( self.JumpHeight )
-		if GetConVar("nz_zombie_lagcompensated"):GetBool() then
-			self:SetLagCompensated(true)
-		end
-		
 		self.HelmetDamage = 0 -- Used to save how much damage the light has taken
 		self:SetUsingClaw(false)
-		
+
 		self.NextAction = 0
 		self.NextClawTime = 0
 		self.NextFlameTime = 0
 	end
-	
-	self.ZombieAlive = true
-
 end
 
 function ENT:StatsInitialize()
 	if SERVER then
-		self:SetRunSpeed(150)
+		self:SetRunSpeed(210)
 		self:SetHealth(1000)
 		self:SetMaxHealth(1000)
 	end
@@ -175,21 +161,21 @@ function ENT:OnSpawn()
 	-- play emerge animation on spawn
 	-- if we have a coroutine else just spawn the zombie without emerging for now.
 	if coroutine.running() then
-		
+
 		local pos = self:GetPos() + (seq == "nz_entry_instant" and Vector(0,0,100) or Vector(0,0,450))
-		
+
 		local effectData = EffectData()
 		effectData:SetStart( pos )
 		effectData:SetOrigin( pos )
 		effectData:SetMagnitude(dur)
 		util.Effect("panzer_spawn_tp", effectData)
-		
+
 		--[[effectData = EffectData()
 		effectData:SetStart( pos + Vector(0, 0, 1000) )
 		effectData:SetOrigin( pos )
 		effectData:SetMagnitude( 0.75 )
 		util.Effect("lightning_strike", effectData)]]
-		
+
 		self:TimedEvent(dur - 2.1, function()
 			--dust cloud
 			local effectData = EffectData()
@@ -203,6 +189,11 @@ function ENT:OnSpawn()
 end
 
 function ENT:OnZombieDeath(dmgInfo)
+	local attacker = dmgInfo:GetAttacker()
+	if (IsValid(attacker) and attacker:IsPlayer() and !self.GivenPoints) then
+		self.GivenPoints = true
+		attacker:GivePoints(450)
+	end
 
 	self:ReleasePlayer()
 	self:StopFlames()
@@ -258,18 +249,14 @@ function ENT:BodyUpdate()
 
 end
 
-function ENT:OnTargetInAttackRange()
-    local atkData = {}
-    atkData.dmglow = 90
-    atkData.dmghigh = 180
-    atkData.dmgforce = Vector( 0, 0, 0 )
-	atkData.dmgdelay = 0.6
-    self:Attack( atkData )
+function ENT:GetNewAttackData(attack_data) -- Panzer does not do knockback damage
+     attack_data.dmgforce = Vector(0, 0, 0)
+     return attack_data
 end
 
 function ENT:IsValidTarget( ent )
 	if !ent then return false end
-	return IsValid( ent ) and ent:GetTargetPriority() != TARGET_PRIORITY_NONE and ent:GetTargetPriority() != TARGET_PRIORITY_SPECIAL
+	return IsValid(ent) and !self:IsTargetDead(ent) and ent:GetTargetPriority() != TARGET_PRIORITY_NONE and ent:GetTargetPriority() != TARGET_PRIORITY_SPECIAL
 	-- Won't go for special targets (Monkeys), but still MAX, ALWAYS and so on
 end
 
@@ -277,7 +264,7 @@ end
 function ENT:OnPathTimeOut()
 	local target = self:GetTarget()
 	if CurTime() < self.NextAction then return end
-	
+
 	if math.random(0,5) == 0 and CurTime() > self.NextClawTime then
 		-- Claw
 		if self:IsValidTarget(target) then
@@ -286,14 +273,14 @@ function ENT:OnPathTimeOut()
 				endpos = target:GetPos() + Vector(0,0,50),
 				filter = self,
 			})
-			
+
 			if IsValid(tr.Entity) and self:IsValidTarget(tr.Entity) and !IsValid(self.ClawHook) then
 				self:Stop()
 				self:PlaySequenceAndWait("nz_grapple_aim")
 				self.loco:SetDesiredSpeed(0)
 				--self:SetSequence(self:LookupSequence("nz_grapple_loop"))
 				self:SetBodygroup(2, 1)
-				
+
 				local clawpos = self:GetAttachment(self:LookupAttachment("clawlight")).Pos
 				self.ClawHook = ents.Create("nz_panzer_claw")
 				self.ClawHook:SetPos(clawpos)
@@ -303,20 +290,20 @@ function ENT:OnPathTimeOut()
 				self:SetUsingClaw(true)
 				self.ClawHook:SetPanzer(self)
 				self:SetAngles((target:GetPos() - self:GetPos()):Angle())
-				
+
 				self.NextAction = CurTime() + math.random(1, 5)
 				self.NextClawTime = CurTime() + math.random(3, 15)
 			end
 		end
 	elseif CurTime() > self.NextFlameTime then
 		-- Flamethrower
-		if self:IsValidTarget(target) and self:GetPos():DistToSqr(target:GetPos()) <= 75000 then	
+		if self:IsValidTarget(target) and self:GetPos():DistToSqr(target:GetPos()) <= 75000 then
 			self:Stop()
 			self:PlaySequenceAndWait("nz_flamethrower_aim")
 			self.loco:SetDesiredSpeed(0)
 			local ang = (target:GetPos() - self:GetPos()):Angle()
 			self:SetAngles(Angle(ang[1], ang[2] + 10, ang[3]))
-			
+
 			self:StartFlames()
 			local seq = math.random(0,1) == 0 and "nz_flamethrower_loop" or "nz_flamethrower_sweep"
 			local id, dur = self:LookupSequence(seq)
@@ -324,14 +311,14 @@ function ENT:OnPathTimeOut()
 			self:SetCycle(0)
 			self:SetPlaybackRate(1)
 			self:SetVelocity(Vector(0,0,0))
-			
+
 			self:TimedEvent(dur, function()
 				self.loco:SetDesiredSpeed(self:GetRunSpeed())
 				self:SetSpecialAnimation(false)
 				self:SetBlockAttack(false)
 				self:StopFlames()
 			end)
-			
+
 			self.NextAction = CurTime() + math.random(1, 5)
 			self.NextFlameTime = CurTime() + math.random(1, 10)
 		end
@@ -339,15 +326,13 @@ function ENT:OnPathTimeOut()
 end
 
 if CLIENT then
-	local eyeGlow =  Material( "sprites/redglow1" )
-	local white = Color( 255, 255, 255, 255 )
 	local lightglow = Material( "sprites/physg_glow1_noz" )
 	local lightyellow = Color( 255, 255, 200, 200 )
 	local clawglow = Material( "sprites/orangecore1" )
 	local clawred = Color( 255, 100, 100, 255 )
 	function ENT:Draw()
-		self:DrawModel()
-		
+		BaseClass.Draw(self) -- The zombiebase eye code still works for us.
+
 		local dlight = DynamicLight( self:EntIndex() )
 		if ( dlight ) then
 			local bone = self:LookupBone("j_spinelower")
@@ -367,25 +352,7 @@ if CLIENT then
 			dlight.style = 0
 			dlight.noworld = true
 		end
-		
-		if self.RedEyes then
-			--local eyes = self:GetAttachment(self:LookupAttachment("eyes")).Pos
-			--local leftEye = eyes + self:GetRight() * -1.5 + self:GetForward() * 0.5
-			--local rightEye = eyes + self:GetRight() * 1.5 + self:GetForward() * 0.5
 
-			local leftEye = self:GetAttachment(self:LookupAttachment("lefteye")).Pos
-			local rightEye = self:GetAttachment(self:LookupAttachment("righteye")).Pos
-			cam.Start3D()
-				render.SetMaterial( eyeGlow )
-				render.DrawSprite( leftEye, 4, 4, white)
-				render.DrawSprite( rightEye, 4, 4, white)
-			cam.End3D()
-		end
-		if GetConVar( "nz_zombie_debug" ):GetBool() then
-			render.DrawWireframeBox(self:GetPos(), Angle(0,0,0), self:OBBMins(), self:OBBMaxs(), Color(255,0,0), true)
-			render.DrawWireframeSphere(self:GetPos(), self:GetAttackRange(), 10, 10, Color(255,165,0), true)
-		end
-		
 		--debugoverlay.Cross(finalpos, 5)
 		--debugoverlay.Line(finalpos, finalpos + ang:Forward()*10, 1, Color(0,255,0))
 		--debugoverlay.Line(finalpos, finalpos + ang:Right()*5, 1, Color(0,255,0))
@@ -393,51 +360,51 @@ if CLIENT then
 			local bone = self:LookupBone("j_helmet")
 			local pos, ang = self:GetBonePosition(bone)
 			local finalpos = pos + ang:Forward()*20 + ang:Up()*10
-		
+
 			cam.Start3D2D(finalpos, ang, 1)
 				surface.SetMaterial(lightglow)
 				surface.SetDrawColor(lightyellow)
 				surface.DrawTexturedRect(-50,-10,100,20)
 			cam.End3D2D()
-			
+
 			ang:RotateAroundAxis(ang:Forward(),90)
-			
+
 			--debugoverlay.Line(finalpos, finalpos + ang:Forward()*15, 1, Color(255,0,0))
 			--debugoverlay.Line(finalpos, finalpos + ang:Right()*5, 1, Color(255,0,0))
-		
+
 			cam.Start3D2D(finalpos, ang, 1)
 				surface.SetMaterial(lightglow)
 				surface.SetDrawColor(lightyellow)
 				surface.DrawTexturedRect(-50,-10,100,20)
 			cam.End3D2D()
 		end
-		
+
 		if self:GetBodygroup(2) == 1 then
 			local att = self:GetAttachment(self:LookupAttachment("clawlight"))
 			local pos, ang = att.Pos, att.Ang
 			ang:RotateAroundAxis(ang:Right(),-90)
-			
+
 			--debugoverlay.Line(pos, pos + ang:Forward()*10, 1, Color(0,255,0))
 			--debugoverlay.Line(pos, pos + ang:Right()*5, 1, Color(0,255,0))
-			
+
 			cam.Start3D2D(pos, ang, 1)
 				surface.SetMaterial(clawglow)
 				surface.SetDrawColor(clawred)
 				surface.DrawTexturedRect(-5,-5,10,10)
 			cam.End3D2D()
 		end
-		
+
 	end
 end
 
 function ENT:OnInjured( dmgInfo )
-	local hitpos = dmgInfo:GetDamagePosition()
-	
+    local hitpos = dmgInfo:GetDamagePosition()
+
 	if !self.HelmetLost then
 		local bone = self:LookupBone("j_helmet")
 		local pos, ang = self:GetBonePosition(bone)
 		local finalpos = pos + ang:Forward()*8 + ang:Up()*11
-		
+
 		if hitpos:DistToSqr(finalpos) < 50 then
 			self.HelmetDamage = self.HelmetDamage + dmgInfo:GetDamage()
 			if self.HelmetDamage > (self:GetMaxHealth() * 0.01) then
@@ -461,20 +428,44 @@ function ENT:OnInjured( dmgInfo )
 				end)
 			end
 		end
-		
-		dmgInfo:ScaleDamage(0.1) -- When the helmet isn't lost, all damage only deals 10%
+
+        -- Only reduce for some damage types, so that weapons like Thundergun don't end up doing only 25 damage /Ethorbit 
+        local reduction_damage_types = {
+            [DMG_BULLET] = true,
+            [DMG_SLASH] = true,
+            [DMG_CRUSH] = true,
+            [DMG_CLUB] = true,
+            [DMG_NEVERGIB] = true,
+            [DMG_ALWAYSGIB] = true,
+            [DMG_AIRBOAT] = true,
+            [DMG_BLAST_SURFACE] = true,
+            [DMG_BUCKSHOT] = true,
+            [DMG_SNIPER] = true,
+            [DMG_MISSILEDEFENSE] = true
+        }
+        
+        if reduction_damage_types[dmgInfo:GetDamageType()] then
+		    dmgInfo:ScaleDamage(0.1) -- When the helmet isn't lost, all damage only deals 10%
+        end
+        
+		if dmgInfo:GetDamageType() == DMG_SHOCK || dmgInfo:GetDamageType() == DMG_DISSOLVE then
+			local panzer_hp = nzRound:GetPanzerHealth() or 500
+			if dmgInfo:GetDamage() > panzer_hp then
+				dmgInfo:SetDamage(panzer_hp / math.Clamp(math.Round(nzRound:GetNumber() / 9), 1, 13))
+			end
+		end
 	else
 		local bone = self:LookupBone("j_head")
 		local pos, ang = self:GetBonePosition(bone)
 		local finalpos = pos + ang:Up()*4
-		
+
 		if hitpos:DistToSqr(finalpos) < 150 then
 			-- No damage scaling on headshot, we keep it at 1x
 		else
 			dmgInfo:ScaleDamage(0.1) -- When the helmet is lost, a non-headshot still only deals 10%
 		end
 	end
-	
+
 	if self:GetUsingClaw() then
 		local pos = self:GetAttachment(self:LookupAttachment("clawlight")).Pos
 		if hitpos:DistToSqr(pos) <= 25 then
@@ -495,6 +486,8 @@ function ENT:OnInjured( dmgInfo )
 			end)
 		end
 	end
+
+	BaseClass.OnInjured(self, dmgInfo) -- IMPORTANT STUFF
 end
 
 function ENT:OnRemove()
@@ -506,7 +499,7 @@ end
 function ENT:StartFlames(time)
 	self:Stop()
 	self:SetFlamethrowing(true)
-	
+
 	if time then self:TimedEvent(time, function() self:StopFlames() end) end
 end
 
@@ -519,30 +512,74 @@ function ENT:OnThink()
 	if self:GetFlamethrowing() then
 		if !self.NextFireParticle or self.NextFireParticle < CurTime() then
 			local bone = self:LookupBone("j_elbow_ri")
-			local pos, ang = self:GetBonePosition(bone)
-			pos = pos - ang:Forward() * 40 - ang:Up()*10
-			if CLIENT then
-				if !IsValid(self.FireEmitter) then self.FireEmitter = ParticleEmitter(self:GetPos(), false) end
-				
-				local p = self.FireEmitter:Add("particles/fire1.vmt", pos)
-				if p then
-					p:SetColor(math.random(30,60), math.random(40,70), math.random(0,50))
-					p:SetStartAlpha(255)
-					p:SetEndAlpha(0)
-					p:SetVelocity(ang:Forward() * -150 + ang:Up()*math.random(-5,5) + ang:Right()*math.random(-5,5))
-					p:SetLifeTime(0.25)
+			if (isnumber(bone)) then
+				local pos, ang = self:GetBonePosition(bone)
+				pos = pos - ang:Forward() * 40 - ang:Up()*10
+				if CLIENT then
+					if !IsValid(self.FireEmitter) then self.FireEmitter = ParticleEmitter(self:GetPos(), false) end
 
-					p:SetDieTime(math.Rand(0.75, 1.5))
+					local p = self.FireEmitter:Add("particles/fire1.vmt", pos)
+					if p then
+						p:SetColor(math.random(30,60), math.random(40,70), math.random(0,50))
+						p:SetStartAlpha(255)
+						p:SetEndAlpha(0)
+						p:SetVelocity(ang:Forward() * -150 + ang:Up()*math.random(-5,5) + ang:Right()*math.random(-5,5))
+						p:SetLifeTime(0.25)
 
-					p:SetStartSize(math.random(1, 5))
-					p:SetEndSize(math.random(20, 30))
-					p:SetRoll(math.random(-180, 180))
-					p:SetRollDelta(math.Rand(-0.1, 0.1))
-					p:SetAirResistance(50)
+						p:SetDieTime(math.Rand(0.75, 1.5))
 
-					p:SetCollide(false)
+						p:SetStartSize(math.random(1, 5))
+						p:SetEndSize(math.random(20, 30))
+						p:SetRoll(math.random(-180, 180))
+						p:SetRollDelta(math.Rand(-0.1, 0.1))
+						p:SetAirResistance(50)
 
-					p:SetLighting(false)
+						p:SetCollide(false)
+
+						p:SetLighting(false)
+					end
+				end
+
+				if IsValid(self.GrabbedPlayer) then
+					if self.GrabbedPlayer:GetPos():DistToSqr(self:GetPos()) > 10000 then
+						self:ReleasePlayer()
+						self:StopFlames()
+						self.loco:SetDesiredSpeed(self:GetRunSpeed())
+						self:SetSpecialAnimation(false)
+						self:SetBlockAttack(false)
+						self:SetStop(false)
+					else
+						local dmg = DamageInfo()
+						dmg:SetAttacker(self)
+						dmg:SetInflictor(self)
+						dmg:SetDamage(2)
+						dmg:SetDamageType(DMG_BURN)
+
+						self.GrabbedPlayer:TakeDamageInfo(dmg)
+						self.GrabbedPlayer:Ignite(1, 0)
+					end
+				else
+					local tr = util.TraceHull({
+						start = pos,
+						endpos = pos - ang:Forward()*150,
+						filter = self,
+						--mask = MASK_SHOT,
+						mins = Vector( -5, -5, -10 ),
+						maxs = Vector( 5, 5, 10 ),
+					})
+
+					debugoverlay.Line(pos, pos - ang:Forward()*150)
+
+					if self:IsValidTarget(tr.Entity) then
+						local dmg = DamageInfo()
+						dmg:SetAttacker(self)
+						dmg:SetInflictor(self)
+						dmg:SetDamage(2)
+						dmg:SetDamageType(DMG_BURN)
+
+						tr.Entity:TakeDamageInfo(dmg)
+						tr.Entity:Ignite(2, 0)
+					end
 				end
 			else
 				if IsValid(self.GrabbedPlayer) then
@@ -559,7 +596,7 @@ function ENT:OnThink()
 						dmg:SetInflictor(self)
 						dmg:SetDamage(2)
 						dmg:SetDamageType(DMG_BURN)
-						
+
 						self.GrabbedPlayer:TakeDamageInfo(dmg)
 						self.GrabbedPlayer:Ignite(1, 0)
 					end
@@ -572,29 +609,29 @@ function ENT:OnThink()
 						mins = Vector( -5, -5, -10 ),
 						maxs = Vector( 5, 5, 10 ),
 					})
-					
+
 					debugoverlay.Line(pos, pos - ang:Forward()*150)
-					
+
 					if self:IsValidTarget(tr.Entity) then
 						local dmg = DamageInfo()
 						dmg:SetAttacker(self)
 						dmg:SetInflictor(self)
 						dmg:SetDamage(2)
 						dmg:SetDamageType(DMG_BURN)
-						
+
 						tr.Entity:TakeDamageInfo(dmg)
 						tr.Entity:Ignite(2, 0)
 					end
 				end
 			end
-			
+
 			self.NextFireParticle = CurTime() + 0.05
 		end
 	elseif CLIENT and self.FireEmitter then
 		self.FireEmitter:Finish()
 		self.FireEmitter = nil
 	end
-	
+
 	if SERVER and IsValid(self.GrabbedPlayer) and !self:IsValidTarget(self.GrabbedPlayer) then
 		self:ReleasePlayer()
 		self:StopFlames()
@@ -603,24 +640,24 @@ end
 
 function ENT:GrabPlayer(ply)
 	if CLIENT then return end
-	
+
 	self:SetBodygroup(2,0)
 	self:SetUsingClaw(false)
 	self:SetStop(false)
 	self.loco:SetDesiredSpeed(self:GetRunSpeed())
-	
+
 	if self:IsValidTarget(ply) then
 		self.GrabbedPlayer = ply
-		
+
 		self:TimedEvent(0, function()
 			local att = self:GetAttachment(self:LookupAttachment("clawlight"))
 			local pos = att.Pos + att.Ang:Forward()*10
-			
+
 			ply:SetPos(pos - Vector(0,0,50))
 			ply:SetMoveType(MOVETYPE_NONE)
 		end)
-		
-		
+
+
 		self:SetSequence(self:LookupSequence("nz_grapple_flamethrower"))
 		self:SetCycle(0)
 		self:StartFlames()
@@ -630,7 +667,7 @@ function ENT:GrabPlayer(ply)
 		self:SetBlockAttack(false)
 		self:SetStop(false)]]
 	else
-		
+
 	end
 end
 
@@ -647,65 +684,4 @@ function ENT:ReleasePlayer()
 	self:SetUsingClaw(false)
 	self:SetStop(false)
 	self.loco:SetDesiredSpeed(self:GetRunSpeed())
-end
-
-function ENT:OnBarricadeBlocking( barricade )
-	if (IsValid(barricade) and barricade:GetClass() == "breakable_entry" ) then
-		if barricade:GetNumPlanks() > 0 then
-			timer.Simple(0.3, function()
-
-				for i = 1, barricade:GetNumPlanks() do
-					barricade:EmitSound("physics/wood/wood_plank_break" .. math.random(1, 4) .. ".wav", 100, math.random(90, 130))
-					barricade:RemovePlank()
-				end
-
-			end)
-
-			self:SetAngles(Angle(0,(barricade:GetPos()-self:GetPos()):Angle()[2],0))
-			
-			local seq, dur
-
-			local attacktbl = self.ActStages[1] and self.ActStages[1].attackanims or self.AttackSequences
-			local target = type(attacktbl) == "table" and attacktbl[math.random(#attacktbl)] or attacktbl
-			
-			if type(target) == "table" then
-				seq, dur = self:LookupSequenceAct(target.seq)
-			elseif target then -- It is a string or ACT
-				seq, dur = self:LookupSequenceAct(target)
-			else
-				seq, dur = self:LookupSequence("swing")
-			end
-			
-			self:SetAttacking(true)
-			self:PlaySequenceAndWait(seq, 1)
-			self:SetLastAttack(CurTime())
-			self:SetAttacking(false)
-			self:UpdateSequence()
-			if coroutine.running() then
-				coroutine.wait(2 - dur)
-			end
-
-			-- this will cause zombies to attack the barricade until it's destroyed
-			local stillBlocked = self:CheckForBarricade()
-			if stillBlocked then
-				self:OnBarricadeBlocking(stillBlocked)
-				return
-			end
-
-			-- Attacking a new barricade resets the counter
-			self.BarricadeJumpTries = 0
-		elseif barricade:GetTriggerJumps() and self.TriggerBarricadeJump then
-			local dist = barricade:GetPos():DistToSqr(self:GetPos())
-			if dist <= 3500 + (1000 * self.BarricadeJumpTries) then
-				self:TriggerBarricadeJump()
-				self.BarricadeJumpTries = 0
-			else
-				-- If we continuously fail, we need to increase the check range (if it is a bigger prop)
-				self.BarricadeJumpTries = self.BarricadeJumpTries + 1
-				-- Otherwise they'd get continuously stuck on slightly bigger props :(
-			end
-		else
-			self:SetAttacking(false)
-		end
-	end
 end

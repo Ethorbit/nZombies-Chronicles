@@ -8,6 +8,8 @@ ENT.Contact			= "Don't"
 ENT.Purpose			= ""
 ENT.Instructions	= ""
 
+ENT.NZEntity = true
+
 function ENT:SetupDataTables()
 
 	self:NetworkVar( "Bool", 0, "Switch" )

@@ -42,7 +42,7 @@ nzTools:CreateTool("barricade", {
 
 		local DProperties = vgui.Create( "DProperties", frame )
 		DProperties:SetSize( 280, 180 )
-		DProperties:SetPos( 10, 10 )
+		DProperties:SetPos( 120, 20 )
 		
 		function DProperties.CompileData()
 			data.planks = valz["Row1"]
