@@ -10,16 +10,16 @@ surface.CreateFont("SmallHP", {
 })
 
 surface.CreateFont( "nz.display.hud.main", {
-	font = "Agency FB", //Avenir Next
+	font = "DK Umbilical Noose", //Avenir Next
 	size = 48,
 	weight = 300,
 	antialias = true,
 } )
 
 surface.CreateFont( "nz.display.hud.small", {
-	font = "Agency FB", //Avenir Next
-	size = 40,
-	weight = 500,
+	font = "DK Umbilical Noose", //Avenir Next
+	size = 28,
+	weight = 300,
 	antialias = true,
 } )
 
@@ -59,16 +59,16 @@ surface.CreateFont( "nz.display.hud.points", {
 } )
 
 surface.CreateFont( "nz.display.hud.ammo", {
-	font = "Agency FB",
-	size = 100,
-	weight = 100,
+	font = "Calibri",
+	size = 60,
+	weight = 50,
 	antialias = true,
 } )
 
 surface.CreateFont( "nz.display.hud.ammo2", {
-	font = "Agency FB",
-	size = 80,
-	weight = 100,
+	font = "Calibri",
+	size = 40,
+	weight = 50,
 	antialias = true,
 } )
 
