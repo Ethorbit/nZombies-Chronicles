@@ -86,6 +86,9 @@ nzConfig.DefineClientVar("nz_zombie_eyes", 1, {FCVAR_ARCHIVE}, "Enable/Disable t
 nzConfig.DefineClientVar("nz_holiday_events", 1, {FCVAR_ARCHIVE}, "Toggle nZombies holiday cosmetic events (Mostly affects zombie appearance)")
 nzConfig.DefineClientVar("nz_allow_copyright_audio", 0, {FCVAR_ARCHIVE}, "Toggles copyrighted audio. There is no guarantee there will be zero copyrighted audio, this simply overrides audio we have identified as copyrighted.")
 
+nzConfig.DefineClientVar("nzc_weather", 1, {FCVAR_USERINFO, FCVAR_ARCHIVE}, "Enable/Disable weather modifications")
+nzConfig.DefineVar("nzc_holiday_events", 1, {FCVAR_USERINFO, FCVAR_ARCHIVE}, "Enable/Disable Holiday Event Visual Effects & other things")
+
 local xpFlags = {FCVAR_SERVER_CAN_EXECUTE, FCVAR_ARCHIVE, FCVAR_REPLICATED}
 local commentSuffix = " (Only works if XP-Tools is installed on the server)"
 nzConfig.DefineVar("nz_xp_from_zombies_allowed", 1, xpFlags, "Can players gain XP from killing non-boss zombies?" .. commentSuffix)
@@ -108,6 +111,7 @@ nzConfig.DefineVar("nz_xp_amount_from_map_records", 180, xpFlags, "XP received f
 nzConfig.DefineClientVar("nz_xp_hudtype", 1, {FCVAR_ARCHIVE}, "1 for bottom, 2 for distracting top" .. commentSuffix)
 nzConfig.DefineClientVar("nz_xp_visuals", 1, {FCVAR_ARCHIVE}, "Enable/Disable the XP-Tools visuals" .. commentSuffix)
 nzConfig.DefineClientVar("nz_xp_bar_shrink_amount", 0.0, {FCVAR_ARCHIVE}, "Changes the horizontal scale of the XP bar, but only if the nz_xp_hudtype is on 1 or less." .. commentSuffix)
+
 --nzConfig.DefineClientVar("nz_levelup_sound", )
 --nzConfig.DefineVar(CLIENT and "nz_client_ragdolltime" or "nz_server_ragdolltime", 30, {FCVAR_ARCHIVE}, CLIENT and "How long clientside Zombie ragdolls will stay in the map." or "How long serverside Zombie ragdolls will stay in the map.")
 --nzConfig.DefineVar("nz_rtv_time", 45, {FCVAR_SERVER_CAN_EXECUTE, FCVAR_ARCHIVE})
